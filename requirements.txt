@@ -1,0 +1,15 @@
+# Python version
+# Python 3.8+ is recommended.
+
+# External System Dependencies (install separately):
+# 1. A LaTeX distribution (e.g., MiKTeX, TeX Live, MacTeX)
+#    - Must include `pdflatex` (and optionally `xelatex`, `lualatex`)
+# 2. `pdfinfo` command-line tool
+#    - Often part of the `poppler-utils` package (or `xpdf` on some systems).
+#    - On macOS (via Homebrew): `brew install poppler`
+#    - On Debian/Ubuntu: `sudo apt-get install poppler-utils`
+#    - On Fedora: `sudo dnf install poppler-utils`
+
+# No specific Python packages required by pip yet, beyond the standard library.
+# If packages like `PyPDF2` were used for PDF manipulation (instead of pdfinfo),
+# they would be listed here. 
