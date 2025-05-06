@@ -473,145 +473,109 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
         A string containing the complete LaTeX document.
     """
     
-    # Determine page height for LaTeX geometry package
-    # The sample .tex uses letterpaper and adjusts margins, which implies a default height (11in).
-    # If page_height is provided, we'll override it.
-    # \usepackage[empty]{fullpage} might conflict if we set explicit page height.
-    # The \addtolength for textheight might also need to be dynamic or removed if pdfpageheight is set.
+    page_height_setting_for_doc_start = "" # For \pdfpageheight
     
-    # For this version, we'll set \pdfpageheight directly if a value is given.
-    # The \addtolength{\textheight}{1.0in} in the preamble effectively makes the text area
-    # use up to 1 inch *more* than the default for letterpaper.
-    # If we set pdfpageheight, we should probably also adjust textheight to be page_height - margins.
-    # For now, let's be simple: set pdfpageheight and keep existing textheight relative adjustments.
-    # This might mean content could flow off if page_height is too small for the textheight.
-    
-    page_height_setting_tex = ""
+    # Determine the physical page height for this compilation run
+    current_physical_page_height = page_height if page_height is not None else DEFAULT_TEMPLATE_PAGE_HEIGHT_INCHES
+
     if page_height is not None:
-        page_height_setting_tex = f"\\setlength{{\\pdfpageheight}}{{{page_height:.2f}in}}"
-    # else:
-        # Use default letterpaper height (11 inches) if nothing specified.
-        # The documentclass already specifies letterpaper.
-        # No explicit setting needed if page_height is None unless we want to ensure a specific default.
-        # For now, let the default from \documentclass[letterpaper] be used if page_height is None.
-        # However, the prompt says "A default height (e.g., 11 or 13 inches) should be used if the argument is None."
-        # So, let's apply the template's default if `page_height` is None.
-        # page_height_setting_tex = f"\\setlength{{\\pdfpageheight}}{{{DEFAULT_TEMPLATE_PAGE_HEIGHT_INCHES:.2f}in}}"
-        # Let's make it conditional: only set if page_height is actually passed.
-        # The generator script can pass DEFAULT_INITIAL_PAGE_HEIGHT_INCHES if none from CLI.
+        # This sets the physical media height at the start of the document
+        page_height_setting_for_doc_start = f"\\setlength{{\\pdfpageheight}}{{{current_physical_page_height:.2f}in}}"
 
-    
-    # LaTeX Preamble (derived from the provided sample .tex)
-    # Note: \input{glyphtounicode} - this file needs to exist or be handled.
-    # For now, assume it's available in the LaTeX distribution or search path.
-    # The \addtolength for textheight might need adjustment if we are dynamically setting page height.
-    preamble = r"""
-\documentclass[letterpaper,11pt]{article}
+    # Calculate target text height based on the current physical page height
+    # Assuming 0.5in for top margin (due to \addtolength{\topmargin}{-.5in}) and 0.5in for bottom margin
+    effective_top_margin = 0.5
+    desired_bottom_margin = 0.5
+    target_text_height = current_physical_page_height - effective_top_margin - desired_bottom_margin
+    text_height_declaration = f"\\setlength{{\\textheight}}{{{target_text_height:.2f}in}}"
 
-\usepackage{latexsym}
-\usepackage[empty]{fullpage} % This sets margins to be minimal. Might conflict with explicit page height.
-\usepackage{titlesec}
-\usepackage{marvosym}
-\usepackage[usenames,dvipsnames]{color}
-\usepackage{verbatim}
-\usepackage{enumitem}
-\usepackage[hidelinks]{hyperref}
-\usepackage{fancyhdr}
-\usepackage[english]{babel}
-\usepackage{tabularx}
-\usepackage{amsfonts} % For \Huge, \scshape etc. sometimes needs amsfonts or similar
-% \input{glyphtounicode} % Assuming this is available if needed for specific glyphs.
-% \pdfgentounicode=1     % Ensured in custom commands section in sample, good to have.
+    # LaTeX Preamble
+    # The text_height_declaration is now part of this main preamble string
+    preamble = rf"""
+\documentclass[letterpaper,11pt]{{article}}
 
-%----------FONT OPTIONS----------
-% sans-serif
-% \usepackage[sfdefault]{FiraSans}
-% \usepackage[sfdefault]{roboto}
-% \usepackage[sfdefault]{noto-sans}
-% \usepackage[default]{sourcesanspro}
+\usepackage{{latexsym}}
+\usepackage[empty]{{fullpage}} % This sets margins to be minimal.
+\usepackage{{titlesec}}
+\usepackage{{marvosym}}
+\usepackage[usenames,dvipsnames]{{color}}
+\usepackage{{verbatim}}
+\usepackage{{enumitem}}
+\usepackage[hidelinks]{{hyperref}}
+\usepackage{{fancyhdr}}
+\usepackage[english]{{babel}}
+\usepackage{{tabularx}}
+\usepackage{{amsfonts}} % For \Huge, \scshape etc. sometimes needs amsfonts or similar
 
-% serif
-% \usepackage{CormorantGaramond}
-% \usepackage{charter}
+% Adjust margins and SET text height precisely
+\addtolength{{\oddsidemargin}}{{-0.5in}}
+\addtolength{{\evensidemargin}}{{-0.5in}}
+\addtolength{{\textwidth}}{{1in}}
+\addtolength{{\topmargin}}{{-0.5in}} % Moves the top of the text area up
+{text_height_declaration}         % SET the text height based on physical page height and margins
 
-\pagestyle{fancy}
-\fancyhf{} % clear all header and footer fields
-\fancyfoot{}
-\renewcommand{\headrulewidth}{0pt}
-\renewcommand{\footrulewidth}{0pt}
+% Page breaking penalties (from previous successful attempt to fill page)
+\clubpenalty=8000
+\widowpenalty=8000
+\tolerance=1000
+\setlength{{\emergencystretch}}{{1.5em}}
 
-% Adjust margins (from sample)
-% These might need to be re-evaluated if we are setting explicit page height.
-% fullpage already makes margins small. These are further adjustments.
-\addtolength{\oddsidemargin}{-0.5in}
-\addtolength{\evensidemargin}{-0.5in}
-\addtolength{\textwidth}{1in}
-\addtolength{\topmargin}{-.5in}
-\addtolength{\textheight}{1.0in} % This makes text area potentially taller than standard 11in page with small top/bottom margins.
-
-\urlstyle{same}
-
-\raggedbottom
+\urlstyle{{same}}
+\raggedbottom 
 \raggedright
-\setlength{\tabcolsep}{0in}
+\setlength{{\tabcolsep}}{{0in}}
 
 % Sections formatting (from sample)
-\titleformat{\section}{
-  \vspace{-4pt}\scshape\raggedright\large
-}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+\titleformat{{\section}}{{
+  \vspace{{-4pt}}\scshape\raggedright\large
+}}{{}}{{0em}}{{}}[\color{{black}}\titlerule \vspace{{-5pt}}]
 
 % Ensure that generated pdf is machine readable/ATS parsable
 \pdfgentounicode=1
 
 %-------------------------
 % Custom commands (from sample)
-\newcommand{\resumeItem}[1]{
-  \item\small{
-    {#1 \vspace{-2pt}}
-  }
-}
+\newcommand{{\resumeItem}}[1]{{
+  \item\small{{
+    {{#1 \vspace{{-2pt}}}}
+  }}
+}}
 
-\newcommand{\resumeSubheading}[4]{
-  \vspace{-2pt}\item
-    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
-      \textbf{#1} & #2 \\
-      \textit{\small#3} & \textit{\small #4} \\
-    \end{tabular*}\vspace{-7pt}
-}
+\newcommand{{\resumeSubheading}}[4]{{
+  \vspace{{-2pt}}\item
+    \begin{{tabular*}}{{0.97\textwidth}}[t]{{l@{{\extracolsep{{\fill}}}}r}}
+      \textbf{{#1}} & #2 \\
+      \textit{{\small#3}} & \textit{{\small #4}} \\
+    \end{{tabular*}}\vspace{{-7pt}}
+}}
 
-\newcommand{\resumeSubSubheading}[2]{
+\newcommand{{\resumeSubSubheading}}[2]{{
     \item
-    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
-      \textit{\small#1} & \textit{\small #2} \\
-    \end{tabular*}\vspace{-7pt}
-}
+    \begin{{tabular*}}{{0.97\textwidth}}{{l@{{\extracolsep{{\fill}}}}r}}
+      \textit{{\small#1}} & \textit{{\small #2}} \\
+    \end{{tabular*}}\vspace{{-7pt}}
+}}
 
-\newcommand{\resumeProjectHeading}[2]{
+\newcommand{{\resumeProjectHeading}}[2]{{
     \item
-    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+    \begin{{tabular*}}{{0.97\textwidth}}{{l@{{\extracolsep{{\fill}}}}r}}
       \small#1 & #2 \\
-    \end{tabular*}\vspace{-7pt}
-}
+    \end{{tabular*}}\vspace{{-7pt}}
+}}
 
-\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+\newcommand{{\resumeSubItem}}[1]{{\resumeItem{{#1}}\vspace{{-4pt}}}}
 
-\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+\renewcommand\labelitemii{{$\vcenter{{\hbox{{\tiny$\bullet$}}}}$}}
 
-\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
-\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
-\newcommand{\resumeItemListStart}{\begin{itemize}}
-\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
-"""
+\newcommand{{\resumeSubHeadingListStart}}{{\begin{{itemize}}[leftmargin=0.15in, label={{}}]}}
+\newcommand{{\resumeSubHeadingListEnd}}{{\end{{itemize}}}}
+\newcommand{{\resumeItemListStart}}{{\begin{itemize}}}}
+\newcommand{{\resumeItemListEnd}}{{\end{{itemize}}\vspace{{-5pt}}}}
+""" 
 
     # Document body start
-    # Apply page height setting if provided. This should be early in the document.
     doc_start = f"""\\begin{{document}}
-{page_height_setting_tex}
-"""
-
-    # Document body end
-    doc_end = r"""
-\end{document}
+{page_height_setting_for_doc_start}
 """
 
     # Extract data based on schema (and handle Evelyn.json variations where noted)
@@ -684,7 +648,9 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
         certifications_tex,
         awards_tex,
         involvement_tex, # Covers leadership/misc as well
-        doc_end
+        r"""
+\end{document}
+"""
     ]
     
     # Filter out None parts (e.g., if a section is empty and its generate function returns None)

@@ -161,18 +161,46 @@ def get_pdf_page_count(pdf_path):
     except Exception as e:
         print(f"Unexpected error running pdfinfo: {e}")
     
-    # Fallback: Just check if the file exists and has content
+    # Method 2: Use grep to search for "Page" in the LaTeX log file
+    log_file = pdf_path.replace('.pdf', '.log')
+    if os.path.exists(log_file):
+        try:
+            with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                log_content = f.read()
+                # Look for patterns like "Output written on filename.pdf (2 pages"
+                match = re.search(r'Output written on .+?\.pdf \((\d+) pages', log_content)
+                if match:
+                    page_count = int(match.group(1))
+                    print(f"Found page count in log file: {page_count} page(s)")
+                    return page_count
+                
+                # Alternative pattern search
+                if "Overfull \hbox" in log_content and "Float too large" in log_content:
+                    print("Warning: Log file indicates content overflow issues")
+                
+        except Exception as e:
+            print(f"Error reading log file: {e}")
+    
+    # Method 3: Fallback - just check if the file exists and parse filename for clues
     if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
         print(f"PDF file exists with size: {os.path.getsize(pdf_path)} bytes")
-        print("Assuming 1 page for auto-sizing purposes")
-        return 1
+        # If file is larger than typical 1-page resume, assume it's multi-page
+        # This is a very crude heuristic and should be improved
+        if os.path.getsize(pdf_path) > 150000:  # Arbitrary threshold
+            print("PDF file is larger than expected for a single page, assuming 2 pages")
+            return 2
+        else:
+            print("Assuming 1 page for auto-sizing purposes")
+            return 1
     
     # Couldn't determine page count
     print("Could not determine page count. Install pdfinfo (poppler-utils) for better results.")
     print("On most systems, you can install it through:")
     print("  - macOS: 'brew install poppler'")
     print("  - Linux: 'apt-get install poppler-utils' (Ubuntu/Debian)")
-    return None
+    # Default to 2 pages if we can't determine to force height increases
+    print("Defaulting to 2 pages to trigger page height increase")
+    return 2
 
 def main():
     # Ensure required directories exist
@@ -329,10 +357,6 @@ def main():
 
 
     # --- Page Sizing Loop / LaTeX Generation / Compilation ---
-    # This is the core logic to be implemented next.
-    # For now, let's just call the generate_latex_content if it exists
-    # and print a placeholder for compilation.
-
     initial_page_height = args.page_height if args.page_height is not None else DEFAULT_INITIAL_PAGE_HEIGHT_INCHES
     
     if hasattr(template_module, 'generate_latex_content'):
@@ -378,22 +402,24 @@ def main():
                 
                 # Check page count
                 page_count = get_pdf_page_count(pdf_filepath)
-                if page_count is None:
-                    print("Could not determine page count. Auto-sizing abandoned.")
-                    break
-                
-                if page_count == 1:
+                if page_count is None or page_count > 1:
+                    if page_count is None:
+                        # If we can't determine page count, assume it needs more space
+                        print("Could not determine page count. Assuming multiple pages and increasing height.")
+                        page_count = 2  # Default to assume it needs more space
+                    
+                    # Need to increase page height and try again
+                    if attempts_remaining > 1:  # Still have more attempts
+                        print(f"Content currently spans {page_count} pages. Increasing page height...")
+                        current_page_height += PAGE_HEIGHT_INCREMENT_INCHES
+                        print(f"New page height: {current_page_height:.2f} inches")
+                        attempts_remaining -= 1
+                    else:
+                        print(f"Maximum attempts reached. Content still spans {page_count} pages.")
+                        break
+                else:
                     print("Success! Content fits on a single page.")
                     success = True
-                    break
-                
-                # Need to increase page height and try again
-                if attempts_remaining > 1:  # Still have more attempts
-                    print(f"Content currently spans {page_count} pages. Increasing page height...")
-                    current_page_height += PAGE_HEIGHT_INCREMENT_INCHES
-                    attempts_remaining -= 1
-                else:
-                    print(f"Maximum attempts reached. Content still spans {page_count} pages.")
                     break
             
             if success:
