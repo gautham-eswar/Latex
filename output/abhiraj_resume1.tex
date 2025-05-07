@@ -1,0 +1,198 @@
+
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage} % This sets margins to be minimal. Might conflict with explicit page height.
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{amsfonts} % For \Huge, \scshape etc. sometimes needs amsfonts or similar
+% \input{glyphtounicode} % Assuming this is available if needed for specific glyphs.
+% \pdfgentounicode=1     % Ensured in custom commands section in sample, good to have.
+
+%----------FONT OPTIONS----------
+% sans-serif
+% \usepackage[sfdefault]{FiraSans}
+% \usepackage[sfdefault]{roboto}
+% \usepackage[sfdefault]{noto-sans}
+% \usepackage[default]{sourcesanspro}
+
+% serif
+% \usepackage{CormorantGaramond}
+% \usepackage{charter}
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins (from sample)
+% These might need to be re-evaluated if we are setting explicit page height.
+% fullpage already makes margins small. These are further adjustments.
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{4.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting (from sample)
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+% Ensure that generated pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------
+% Custom commands (from sample)
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small#1} & \textit{\small #2} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+% New command for single line subheading
+\newcommand{\resumeSubheadingSingleLine}[2]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+\begin{document}
+\setlength{\pdfpageheight}{14.00in}
+
+\begin{center}
+    \textbf{\Huge \scshape ABHIRAJ SINGH} \\ \vspace{1pt}
+    \small 352-359-2258 $|$ \href{mailto:abhiraj_singh@berkeley.edu}{\underline{abhiraj\_singh@berkeley.edu}}
+    \small Berkeley, CA
+\end{center}
+
+\section*{Summary} % Using section* for unnumbered
+  Supply chain data analyst with a strong foundation in mathematics and statistics, leveraging 2.5 years of consulting experience across multiple domains to deliver actionable insights and data-driven decision-making.
+
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {University of California, Berkeley}{Berkeley, CA}
+      {Master of Analytics, Industrial Engineering and Operations Research}{May 2025 -- Present}
+    \resumeSubSubheading{GPA: 4.00/4.00}{}
+      \resumeItemListStart
+        \resumeItem{Coursework – Optimization Analytics, Machine Learning I \& II, Risk Modelling, Healthcare Analytics, Economics of Supply Chain}
+      \resumeItemListEnd
+    \resumeSubheading
+      {Manipal Institute of Technology}{Bangalore, India}
+      {Bachelor of Technology, Mechanical Engineering}{July 2022 -- Present}
+    \resumeSubSubheading{GPA: 3.71/4.00}{}
+      \resumeItemListStart
+        \resumeItem{Coursework - Computational Linear Algebra, Probability, Applied Statistics, Intro to Financial Engineering}
+      \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+\section{Experience}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Associate Risk Consultant}{Oct 2023 -- Jun 2024}
+      {KPMG India}{Bangalore, India}
+      \resumeItemListStart
+        \resumeItem{Resolved billing errors, anomalous performance evaluations, and erroneous TDS deductions using MS Excel-based data profiling, preventing financial risk and revenue loss of \$120k.}
+        \resumeItem{Developed ETL pipelines using Python to analyze vendor performance and automate recommendations, enabling data-driven procurement and achieving potential cost savings of \$1.5 million.}
+        \resumeItem{Optimized client sourcing strategy in real estate, reducing dependency on spot purchases and enabling bulk negotiations and rate contracts, driving \$600K in potential savings.}
+        \resumeItem{Collaborated with cross-functional teams to develop Power BI dashboards, integrating Risk and Control Metrics for Order-to-Cash, Marketing, and Inventory processes, to deliver actionable data-driven business recommendations.}
+      \resumeItemListEnd
+    \resumeSubheading
+      {Risk Analyst}{Jan 2022 -- Oct 2023}
+      {KPMG India}{Bangalore, India}
+      \resumeItemListStart
+        \resumeItem{Audited 150+ distributors in a nationwide network, reconciling ERP sales data with reported figures, and automated 2 of 6 major audit processes using Excel Macros and SQL, reducing execution time by 40\% per distributor.}
+        \resumeItem{Identified gaps in procurement workflows for high-value CAPEX and OPEX purchases, streamlining approval hierarchies and reducing cycle time for vendor onboarding and contract execution.}
+        \resumeItem{Investigated inventory and material management inefficiencies, detecting overstocking and procurement delays.}
+        \resumeItem{Created an automated Power Automate model to categorize customer complaint emails and re-route them to process owners.}
+      \resumeItemListEnd
+    \resumeSubheading
+      {Predictive Maintenance Intern}{Jun 2021 -- Aug 2021}
+      {Oil and Natural Gas Corporation}{Delhi, India}
+      \resumeItemListStart
+        \resumeItem{Cleaned and pre-processed 5 years' worth of sensor data from diesel engines in RStudio for predictive modeling.}
+        \resumeItem{Used regression analysis to identify key indicators of engine inefficiency across 5 critical engine performance parameters.}
+        \resumeItem{Proposed and tested predictive maintenance models using Random Forests and Decision Trees, achieving a 25\% boost in operational efficiency and automating fault detection with 81\% accuracy.}
+      \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+\section{Projects}
+    \resumeSubHeadingListStart
+      \resumeProjectHeading
+          {\textbf{Google Case Competition}}{}
+          \resumeItemListStart
+            \resumeItem{Developed a predictive model using time series forecasting and Monte Carlo simulations to predict advertiser demand \& budgets. Optimized staffing and revenue by designing a priority-based queuing algorithm and integrating it with an SLSQP optimization model, reducing wait times, improving agent assignments, and maximizing profitability.}
+          \resumeItemListEnd
+      \resumeProjectHeading
+          {\textbf{Wells Fargo Investment Banking Hackathon}}{}
+          \resumeItemListStart
+            \resumeItem{Optimized hedge selection, minimizing premium costs while maintaining a \$10M exposure threshold. Implemented Monte Carlo simulations to model price fluctuations, reducing unnecessary trades and improving cost efficiency.}
+          \resumeItemListEnd
+      \resumeProjectHeading
+          {\textbf{PedalRental Database Analysis and Optimization}}{}
+          \resumeItemListStart
+            \resumeItem{Designed and implemented a relational database with 15+ entities, normalized to BCNF for consistency and scalability. Executed complex MySQL queries to extract insights on rental trends, customer segmentation, and inventory optimization. Migrated analytical workflows to Databricks, utilizing Apache Spark for parallel processing of large datasets.}
+          \resumeItemListEnd
+      \resumeProjectHeading
+          {\textbf{Collaboration on Basketball Performance Analysis}}{}
+          \resumeItemListStart
+            \resumeItem{Analyzed over 3,000 shots made by LA Lakers players from the 2008-09 NBA season to find patterns and trends. Visualized a detailed half basketball court in R, representing shooting locations and shot distribution of 18 players. Utilized shot distributions and key player performance metrics such as eFG\%, TFG\%, and TS\% to provide improved strategies.}
+          \resumeItemListEnd
+    \resumeSubHeadingListEnd
+
+\section{Technical Skills}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{Soft Skills}{: Ability to learn and adapt quickly, Effective time management skills, Attention to detail, Ability to work effectively in a team, Structured problem-solving, Active listening, Strong written and verbal communication, Innovative thinking}
+    }}
+ \end{itemize}
+
+
+\end{document}
