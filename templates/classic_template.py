@@ -212,62 +212,41 @@ def _generate_projects_section(project_list: Optional[List[Dict[str, Any]]]) -> 
 
 def _generate_skills_section(skills_dict: Optional[Dict[str, Any]]) -> Optional[str]:
     if not skills_dict: 
-        print("DEBUG SKILLS: skills_dict is None or empty. Skipping section.")
         return None
-    print(f"DEBUG SKILLS: skills_dict received: {skills_dict}") # Print the whole skills_dict
 
-    technical_skills_parts = []
-    technical_skills_data = skills_dict.get("Technical Skills") 
-    print(f"DEBUG SKILLS: technical_skills_data (from get('Technical Skills')): {technical_skills_data}")
+    all_skill_parts = [] # This will hold all formatted skill strings
 
-    if technical_skills_data and isinstance(technical_skills_data, dict):
-        print("DEBUG SKILLS: Processing Technical Skills as a dictionary.")
+    # Process Technical Skills
+    technical_skills_data = skills_dict.get("Technical Skills")
+    if isinstance(technical_skills_data, dict): # Categorized technical skills
         for category, skills_list in technical_skills_data.items():
             category_name = fix_latex_special_chars(category)
-            print(f"DEBUG SKILLS: Tech Category: {category_name}, Skills List: {skills_list}")
-            if category_name and skills_list and isinstance(skills_list, list):
+            if category_name and isinstance(skills_list, list) and skills_list:
                 processed_skills = [fix_latex_special_chars(s) for s in skills_list if s]
                 if processed_skills:
-                    technical_skills_parts.append(f"\\textbf{{{category_name}}}: {', '.join(processed_skills)}")
-                    print(f"DEBUG SKILLS: Added to technical_skills_parts: {technical_skills_parts[-1]}")
-            else:
-                print(f"DEBUG SKILLS: Skipped Tech Category {category_name} due to invalid skills_list or type.")
-    else:
-        print("DEBUG SKILLS: No valid 'Technical Skills' dictionary found or it's not a dict.")
+                    all_skill_parts.append(f"\\textbf{{{category_name}}}: {', '.join(processed_skills)}")
+    elif isinstance(technical_skills_data, list): # Flat list of technical skills
+        processed_flat_skills = [fix_latex_special_chars(s) for s in technical_skills_data if s]
+        if processed_flat_skills:
+            all_skill_parts.append(f"\\textbf{{Technical Skills}}: {', '.join(processed_flat_skills)}")
     
+    # Process Soft Skills
     soft_skills_list = skills_dict.get("Soft Skills")
-    soft_skills_str = ""
-    print(f"DEBUG SKILLS: soft_skills_list (from get('Soft Skills')): {soft_skills_list}")
-    if soft_skills_list and isinstance(soft_skills_list, list):
+    if isinstance(soft_skills_list, list) and soft_skills_list:
         processed_soft_skills = [fix_latex_special_chars(s) for s in soft_skills_list if s]
         if processed_soft_skills: 
-            soft_skills_str = f"\\textbf{{Soft Skills}}: {', '.join(processed_soft_skills)}"
-            print(f"DEBUG SKILLS: Processed soft_skills_str: {soft_skills_str}")
-        else:
-            print("DEBUG SKILLS: Soft skills list was empty after processing.")
-    else:
-        print("DEBUG SKILLS: No valid 'Soft Skills' list found or it's not a list.")
+            all_skill_parts.append(f"\\textbf{{Soft Skills}}: {', '.join(processed_soft_skills)}")
 
-    if not technical_skills_parts and not soft_skills_str:
-        print("DEBUG SKILLS: No skills content to render. Skipping section.")
-        return None
+    if not all_skill_parts:
+        return None # No skills content at all
 
     lines = [r"\section{Skills}"] 
-    lines.append(r"\begin{itemize}[leftmargin=0.15in, label={}, itemsep=1pt, topsep=1pt]") 
-    
-    item_content = []
-    if technical_skills_parts:
-        item_content.extend(technical_skills_parts)
-    
-    if soft_skills_str:
-        item_content.append(soft_skills_str)
-        
+    lines.append(r"\begin{itemize}[leftmargin=0.15in, label={}, itemsep=1pt, topsep=1pt]")
     lines.append(r"    \small{\item{%")
-    lines.append(" \\\\ ".join(item_content)) 
+    lines.append(" \\\\ ".join(all_skill_parts)) # Join all parts with LaTeX newline
     lines.append(r"    }}%")
     lines.append(r"\end{itemize}")
     lines.append("")
-    print(f"DEBUG SKILLS: Final item_content for LaTeX: {item_content}")
     return "\n".join(lines)
 
 
