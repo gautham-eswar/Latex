@@ -42,9 +42,12 @@ def _generate_header_section(personal_info: Optional[Dict[str, Any]]) -> Optiona
     name = fix_latex_special_chars(personal_info.get("name"))
     email = personal_info.get("email")  # Raw email, will handle special chars in href
     phone = fix_latex_special_chars(personal_info.get("phone"))
-    linkedin = fix_latex_special_chars(personal_info.get("linkedin")) # Assuming 'linkedin' key
-    website = fix_latex_special_chars(personal_info.get("website")) # Assuming 'website' key
-    github = fix_latex_special_chars(personal_info.get("github")) # Assuming 'github' key
+    
+    # Get raw values for URLs, with a fallback for LinkedIn
+    raw_linkedin = personal_info.get("linkedin") or personal_info.get("website/LinkedIn")
+    raw_github = personal_info.get("github")
+    raw_website = personal_info.get("website")
+    
     location = fix_latex_special_chars(personal_info.get("location"))
 
     lines = []
@@ -56,25 +59,29 @@ def _generate_header_section(personal_info: Optional[Dict[str, Any]]) -> Optiona
     if phone:
         contact_parts.append(phone)
     if email:
-        # Special handling for email to avoid underscore issues
-        # Use the raw email for mailto but escape underscores properly for display
-        email_display = email.replace("_", r"\_")  # Proper LaTeX escaping
-        contact_parts.append(f"\\href{{mailto:{email}}}{{\\underline{{{email_display}}}}}")
-    if linkedin: # Assuming 'linkedin' key from schema
-        linkedin_url = linkedin
-        if not linkedin.startswith("http"):
-            linkedin_url = f"https://{linkedin}" # Basic assumption
-        contact_parts.append(f"\\href{{{linkedin_url}}}{{\\underline{{{linkedin}}}}}")
-    if github: # Assuming 'github' key
-        github_url = github
-        if not github.startswith("http"):
-            github_url = f"https://{github}" # Basic assumption
-        contact_parts.append(f"\\href{{{github_url}}}{{\\underline{{{github}}}}}")
-    if website: # Assuming 'website' key
-        website_url = website
-        if not website.startswith("http"): # Basic check for protocol
-             website_url = f"http://{website}"
-        contact_parts.append(f"\\href{{{website_url}}}{{\\underline{{{website}}}}}")
+        email_display = email.replace("_", r"\_")
+        contact_parts.append(f"\\href{{mailto:{email}}}{{{email_display}}}")
+    
+    if raw_linkedin:
+        linkedin_display = fix_latex_special_chars(raw_linkedin)
+        linkedin_url = raw_linkedin # Use raw value for URL
+        if not linkedin_url.startswith("http"):
+            linkedin_url = f"https://{linkedin_url}"
+        contact_parts.append(f"\\href{{{linkedin_url}}}{{{linkedin_display}}}")
+    
+    if raw_github:
+        github_display = fix_latex_special_chars(raw_github)
+        github_url = raw_github # Use raw value for URL
+        if not github_url.startswith("http"):
+            github_url = f"https://{github_url}"
+        contact_parts.append(f"\\href{{{github_url}}}{{{github_display}}}")
+        
+    if raw_website:
+        website_display = fix_latex_special_chars(raw_website)
+        website_url = raw_website # Use raw value for URL
+        if not website_url.startswith("http"): # Basic check for protocol
+             website_url = f"http://{website_url}"
+        contact_parts.append(f"\\href{{{website_url}}}{{{website_display}}}")
 
     if contact_parts:
         lines.append(f"    \\small {' $|$ '.join(contact_parts)}")
