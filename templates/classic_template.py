@@ -14,19 +14,12 @@ def fix_latex_special_chars(text: Optional[Any]) -> str:
     if not isinstance(text, str):
         text = str(text) # Ensure it's a string
 
-    # Process percentage signs specially to handle common patterns like "5%" correctly
-    # First, find and protect patterns like "X%" where X is a number
-    protected_percentages = {}
-    for i, match in enumerate(re.finditer(r'(\d+)%', text)):
-        placeholder = f"__PCT_PLACEHOLDER_{i}__"
-        text = text.replace(match.group(0), placeholder)
-        protected_percentages[placeholder] = f"{match.group(1)}\\%"
-
-    # Now handle standard LaTeX special characters
+    # Order of replacements is critical.
+    # Replace backslash first, then other characters including percent.
     replacements = [
         ("\\", r"\textbackslash{}"), # Must be first
         ("&", r"\&"),
-        ("%", r"\%"),
+        ("%", r"\%"), # Direct replacement for percent
         ("$", r"\$"),
         ("#", r"\#"),
         ("_", r"\_"),
@@ -38,10 +31,6 @@ def fix_latex_special_chars(text: Optional[Any]) -> str:
 
     for old, new in replacements:
         text = text.replace(old, new)
-        
-    # Finally, restore the protected percentage patterns
-    for placeholder, replacement in protected_percentages.items():
-        text = text.replace(placeholder, replacement)
         
     return text
 
@@ -104,117 +93,86 @@ def _generate_header_section(personal_info: Optional[Dict[str, Any]]) -> Optiona
 
 
 def _generate_objective_section(objective: Optional[str]) -> Optional[str]:
-    if not objective:
-        return None
-    
-    return f"""\\section*{{Summary}} % Using section* for unnumbered
+    if not objective: return None
+    return fr"""\section*{{Summary}} % Using section* for unnumbered
   {fix_latex_special_chars(objective)}
 """
 
 def _generate_education_section(education_list: Optional[List[Dict[str, Any]]]) -> Optional[str]:
-    if not education_list:
-        return None
-    
-    lines = ["\\section{Education}", "  \\resumeSubHeadingListStart"]
+    if not education_list: return None
+    content_lines = []
     for edu in education_list:
         uni = fix_latex_special_chars(edu.get("institution") or edu.get("university"))
         loc = fix_latex_special_chars(edu.get("location"))
         degree_parts = [fix_latex_special_chars(edu.get("degree"))]
-        if edu.get("specialization"):
-            degree_parts.append(fix_latex_special_chars(edu.get("specialization")))
+        if edu.get("specialization"): degree_parts.append(fix_latex_special_chars(edu.get("specialization")))
         degree_str = ", ".join(filter(None, degree_parts))
-        
-        start_date = edu.get("start_date", "")
-        end_date = edu.get("end_date", "")
-        dates = f"{fix_latex_special_chars(start_date)} -- {fix_latex_special_chars(end_date)}" if start_date or end_date else ""
-        if end_date and end_date.lower() == 'present': # Handle 'Present' for end date
-             dates = f"{fix_latex_special_chars(start_date)} -- Present"
-        elif not end_date and start_date: # If only start_date is present
-             dates = fix_latex_special_chars(start_date)
+        start_date = fix_latex_special_chars(edu.get("start_date", ""))
+        end_date = fix_latex_special_chars(edu.get("end_date", ""))
+        dates = f"{start_date} -- {end_date}" if start_date or end_date else ""
+        if end_date and end_date.lower() == 'present': dates = f"{start_date} -- Present"
+        elif not end_date and start_date: dates = start_date
 
-
-        lines.append(f"    \\resumeSubheading")
-        lines.append(f"      {{{uni}}}{{{loc}}}")
-        lines.append(f"      {{{degree_str}}}{{{dates}}}")
-        
-        # Optional GPA and Honors
-        gpa = edu.get("gpa")
-        honors = fix_latex_special_chars(edu.get("honors"))
-        
-        details_parts = []
-        if gpa:
-            details_parts.append(f"GPA: {fix_latex_special_chars(gpa)}")
-        if honors:
-            details_parts.append(f"Honors: {honors}")
-        
-        if details_parts:
-            lines.append(f"    \\resumeSubSubheading{{{', '.join(details_parts)}}}{{}}")
-
-        # Relevant coursework / additional info
-        # The schema has `relevant_coursework` as a list, and JSON has `additional_info` as a string.
-        # Let's prioritize `additional_info` if present, then `relevant_coursework`.
-        
-        additional_info = edu.get("additional_info")
-        relevant_coursework = edu.get("relevant_coursework")
-
-        if additional_info:
-            lines.append(r"      \resumeItemListStart")
-            lines.append(f"        \\resumeItem{{{fix_latex_special_chars(additional_info)}}}")
-            lines.append(r"      \resumeItemListEnd")
-        elif relevant_coursework and isinstance(relevant_coursework, list):
-            lines.append(r"      \resumeItemListStart")
-            courses_str = ", ".join(fix_latex_special_chars(c) for c in relevant_coursework)
-            lines.append(f"        \\resumeItem{{Relevant Coursework: {courses_str}}}")
-            lines.append(r"      \resumeItemListEnd")
+        if uni and degree_str:
+            content_lines.append(r"    \resumeSubheading")
+            content_lines.append(f"      {{{uni}}}{{{loc}}}")
+            content_lines.append(f"      {{{degree_str}}}{{{dates}}}")
+            gpa = edu.get("gpa")
+            honors = fix_latex_special_chars(edu.get("honors"))
+            details_parts = []
+            if gpa: details_parts.append(f"GPA: {fix_latex_special_chars(gpa)}")
+            if honors: details_parts.append(f"Honors: {honors}")
+            if details_parts: content_lines.append(f"    \\resumeSubSubheading{{{', '.join(details_parts)}}}{{}}")
             
-    lines.append("  \\resumeSubHeadingListEnd")
-    lines.append("")
-    return "\n".join(lines)
+            additional_info = edu.get("additional_info")
+            relevant_coursework = edu.get("relevant_coursework")
+            if additional_info:
+                content_lines.append(r"      \resumeItemListStart")
+                content_lines.append(f"        \\resumeItem{{{fix_latex_special_chars(additional_info)}}}")
+                content_lines.append(r"      \resumeItemListEnd")
+            elif relevant_coursework and isinstance(relevant_coursework, list):
+                content_lines.append(r"      \resumeItemListStart")
+                courses_str = ", ".join(fix_latex_special_chars(c) for c in relevant_coursework)
+                content_lines.append(f"        \\resumeItem{{Relevant Coursework: {courses_str}}}")
+                content_lines.append(r"      \resumeItemListEnd")
+    if not content_lines: return None
+    final_latex_parts = [r"\section{Education}", r"  \resumeSubHeadingListStart"] + content_lines + [r"  \resumeSubHeadingListEnd", ""]
+    return "\n".join(final_latex_parts)
 
 def _generate_experience_section(experience_list: Optional[List[Dict[str, Any]]]) -> Optional[str]:
-    # Placeholder: Needs to map JSON `work_experience` to `resumeSubheading` and `resumeItemList`
-    if not experience_list:
-        return None
-    
-    lines = ["\\section{Experience}", "  \\resumeSubHeadingListStart"]
+    if not experience_list: return None
+    content_lines = []
     for exp in experience_list:
         company = fix_latex_special_chars(exp.get("company"))
-        position = fix_latex_special_chars(exp.get("position") or exp.get("title")) # JSON has 'title'
+        position = fix_latex_special_chars(exp.get("position") or exp.get("title"))
+        if not company and not position: continue
         location = fix_latex_special_chars(exp.get("location"))
-        
         dates_dict = exp.get("dates", {})
         start_date = fix_latex_special_chars(dates_dict.get("start_date"))
         end_date = fix_latex_special_chars(dates_dict.get("end_date"))
         dates_str = f"{start_date} -- {end_date}" if start_date or end_date else ""
-        if end_date and end_date.lower() == 'present':
-             dates_str = f"{start_date} -- Present"
-        elif not end_date and start_date:
-             dates_str = start_date
-
-
-        lines.append(f"    \\resumeSubheading")
-        lines.append(f"      {{{position}}}{{{dates_str}}}") # Position first, then dates
-        lines.append(f"      {{{company}}}{{{location}}}")   # Company second, then location
-
-        responsibilities = exp.get("responsibilities") or exp.get("responsibilities/achievements") # JSON has the latter
+        if end_date and end_date.lower() == 'present': dates_str = f"{start_date} -- Present"
+        elif not end_date and start_date: dates_str = start_date
+        
+        content_lines.append(r"    \resumeSubheading")
+        content_lines.append(f"      {{{position}}}{{{dates_str}}}")
+        content_lines.append(f"      {{{company}}}{{{location}}}")
+        responsibilities = exp.get("responsibilities") or exp.get("responsibilities/achievements")
         if responsibilities and isinstance(responsibilities, list):
-            lines.append(r"      \resumeItemListStart")
+            content_lines.append(r"      \resumeItemListStart")
             for resp in responsibilities:
-                lines.append(f"        \\resumeItem{{{fix_latex_special_chars(resp)}}}")
-            lines.append(r"      \resumeItemListEnd")
-            
-    lines.append("  \\resumeSubHeadingListEnd")
-    lines.append("")
-    return "\n".join(lines)
+                if resp: content_lines.append(f"        \\resumeItem{{{fix_latex_special_chars(resp)}}}")
+            content_lines.append(r"      \resumeItemListEnd")
+    if not content_lines: return None
+    final_latex_parts = [r"\section{Experience}", r"  \resumeSubHeadingListStart"] + content_lines + [r"  \resumeSubHeadingListEnd", ""]
+    return "\n".join(final_latex_parts)
 
 def _generate_projects_section(project_list: Optional[List[Dict[str, Any]]]) -> Optional[str]:
-    if not project_list:
-        return None
-    
-    lines = ["\\section{Projects}", "    \\resumeSubHeadingListStart"]
+    if not project_list: return None
+    content_lines = []
     for proj in project_list:
         title = fix_latex_special_chars(proj.get("title"))
-        # Dates for projects can be a single 'date' or 'dates' dict
+        if not title: continue
         dates_val = proj.get("dates") or proj.get("date")
         dates_str = ""
         if isinstance(dates_val, dict):
@@ -223,85 +181,60 @@ def _generate_projects_section(project_list: Optional[List[Dict[str, Any]]]) -> 
             dates_str = f"{start} -- {end}" if start or end else ""
             if end and end.lower() == 'present': dates_str = f"{start} -- Present"
             elif not end and start : dates_str = start
-        elif isinstance(dates_val, str):
-            dates_str = fix_latex_special_chars(dates_val)
-
-        tech_used = proj.get("technologies") or proj.get("technologies_used") # JSON has the latter
+        elif isinstance(dates_val, str): dates_str = fix_latex_special_chars(dates_val)
+        tech_used = proj.get("technologies") or proj.get("technologies_used")
         
-        # Combining title with technologies if they exist for the heading
         heading_title_part = f"\\textbf{{{title}}}"
         if tech_used:
-            if isinstance(tech_used, list):
-                tech_str = ", ".join(fix_latex_special_chars(t) for t in tech_used)
-            else: # string
-                tech_str = fix_latex_special_chars(tech_used)
-            if tech_str: # Ensure not empty
-                 heading_title_part += f" $|$ \\emph{{{tech_str}}}"
-
-        lines.append(f"      \\resumeProjectHeading")
-        lines.append(f"          {{{heading_title_part}}}{{{dates_str}}}")
-
+            tech_str = ", ".join(fix_latex_special_chars(t) for t in tech_used) if isinstance(tech_used, list) else fix_latex_special_chars(tech_used)
+            if tech_str: heading_title_part += f" $|$ \\emph{{{tech_str}}}"
+            
+        content_lines.append(r"      \resumeProjectHeading")
+        content_lines.append(f"          {{{heading_title_part}}}{{{dates_str}}}")
         description = proj.get("description")
         if description:
-            lines.append(r"          \resumeItemListStart")
+            content_lines.append(r"          \resumeItemListStart")
             if isinstance(description, list):
                 for item in description:
-                    lines.append(f"            \\resumeItem{{{fix_latex_special_chars(item)}}}")
-            else: # string
-                lines.append(f"            \\resumeItem{{{fix_latex_special_chars(description)}}}")
-            lines.append(r"          \resumeItemListEnd")
-            
-    lines.append("    \\resumeSubHeadingListEnd")
-    lines.append("")
-    return "\n".join(lines)
+                    if item: content_lines.append(f"            \\resumeItem{{{fix_latex_special_chars(item)}}}")
+            else:
+                content_lines.append(f"            \\resumeItem{{{fix_latex_special_chars(description)}}}")
+            content_lines.append(r"          \resumeItemListEnd")
+    if not content_lines: return None
+    final_latex_parts = [r"\section{Projects}", r"    \resumeSubHeadingListStart"] + content_lines + [r"    \resumeSubHeadingListEnd", ""]
+    return "\n".join(final_latex_parts)
 
 
 def _generate_skills_section(skills_dict: Optional[Dict[str, Any]]) -> Optional[str]:
-    # The sample JSON has skills_dict: {"Soft Skills": [], "Technical Skills": {"Category": [item1, item2]}}
-    # The schema has skills_dict: {"Category": [item1, item2]}
-    # The sample LaTeX is more free-form.
-    # Let's try to match the sample JSON structure and then the schema if that fails.
-
-    if not skills_dict:
-        return None
-
-    lines = ["\\section{Technical Skills}"] # Default section title from sample
-    
-    # Check for "Technical Skills" sub-dictionary as in Evelyn.json
+    if not skills_dict: return None
     technical_skills_data = skills_dict.get("Technical Skills")
-    
-    # If "Technical Skills" is not a sub-dict, assume skills_dict itself is the category->list_of_skills map
-    # as per the prompt's schema definition.
     skills_to_process = {}
-    if isinstance(technical_skills_data, dict):
-        skills_to_process = technical_skills_data
-    elif isinstance(skills_dict, dict) and not technical_skills_data: # skills_dict *is* the categories
-        skills_to_process = skills_dict
+    if isinstance(technical_skills_data, dict): skills_to_process = technical_skills_data
+    elif isinstance(skills_dict, dict) and not technical_skills_data : skills_to_process = skills_dict
     
-    if not skills_to_process: # If still no processable skills (e.g. only "Soft Skills" or empty)
-        # Try to see if there's a "Soft Skills" to list, or just output nothing.
-        soft_skills = skills_dict.get("Soft Skills")
-        if isinstance(soft_skills, list) and soft_skills:
-            lines.append(r" \begin{itemize}[leftmargin=0.15in, label={}]")
-            lines.append(r"    \small{\item{")
-            lines.append(f"     \\textbf{{Soft Skills}}{{: {fix_latex_special_chars(', '.join(soft_skills))}}} \\\\")
-            lines.append(r"    }}")
-            lines.append(r" \end{itemize}")
-            lines.append("")
-            return "\n".join(lines)
-        return None # No technical skills to list in the desired format
+    category_lines_content = []
+    if skills_to_process:
+        for category, skills_list in skills_to_process.items():
+            if skills_list and isinstance(skills_list, list):
+                skills_str = ", ".join(fix_latex_special_chars(s) for s in skills_list if s)
+                if skills_str: category_lines_content.append(f"     \\textbf{{{fix_latex_special_chars(category)}}}{{: {skills_str}}}")
+    
+    soft_skills_list = skills_dict.get("Soft Skills")
+    soft_skills_content_str = ""
+    if soft_skills_list and isinstance(soft_skills_list, list):
+        processed_soft_skills = [fix_latex_special_chars(s) for s in soft_skills_list if s]
+        if processed_soft_skills: soft_skills_content_str = f"     \\textbf{{Soft Skills}}{{: {', '.join(processed_soft_skills)}}}"
 
+    if not category_lines_content and not soft_skills_content_str: return None
+
+    lines = [r"\section{Technical Skills}"]
     lines.append(r" \begin{itemize}[leftmargin=0.15in, label={}]")
     lines.append(r"    \small{\item{")
-    
-    category_lines = []
-    for category, skills_list in skills_to_process.items():
-        if isinstance(skills_list, list) and skills_list: # Ensure it's a list and not empty
-            skills_str = ", ".join(fix_latex_special_chars(s) for s in skills_list)
-            category_lines.append(f"     \\textbf{{{fix_latex_special_chars(category)}}}{{: {skills_str}}}")
-    
-    lines.append(" \\\\ ".join(category_lines)) # Join categories with LaTeX newline
-    
+    if category_lines_content:
+        lines.append(" \\\\ ".join(category_lines_content))
+        if soft_skills_content_str: lines.append(r" \\ ")
+    if soft_skills_content_str:
+        lines.append(soft_skills_content_str)
     lines.append(r"    }}")
     lines.append(r" \end{itemize}")
     lines.append("")
@@ -309,94 +242,76 @@ def _generate_skills_section(skills_dict: Optional[Dict[str, Any]]) -> Optional[
 
 
 def _generate_languages_section(languages_list: Optional[List[Dict[str, Any]]]) -> Optional[str]:
-    if not languages_list:
-        return None
-    lines = ["\\section{Languages}", r" \begin{itemize}[leftmargin=0.15in, label={}]"]
+    if not languages_list: return None
     lang_items = []
     for lang_data in languages_list:
         name = fix_latex_special_chars(lang_data.get("name"))
         proficiency = fix_latex_special_chars(lang_data.get("proficiency"))
-        if name:
+        if name: # Only add if name is present
             item_str = name
-            if proficiency:
-                item_str += f" ({proficiency})"
+            if proficiency: item_str += f" ({proficiency})"
             lang_items.append(item_str)
-    if lang_items:
-         lines.append(f"    \\small{{\\item{{{', '.join(lang_items)}}}}}")
-
-    lines.append(r" \end{itemize}")
-    lines.append("")
-    return "\n".join(lines) if lang_items else None
+    if not lang_items: return None
+    final_latex_parts = [r"\section{Languages}", r" \begin{itemize}[leftmargin=0.15in, label={}]"]
+    final_latex_parts.append(f"    \\small{{\\item{{{', '.join(lang_items)}}}}}")
+    final_latex_parts.extend([r" \end{itemize}", ""])
+    return "\n".join(final_latex_parts)
 
 
 def _generate_certifications_section(cert_list: Optional[List[Dict[str, Any]]]) -> Optional[str]:
-    # Schema: certifications (list of dicts: `certification`, `institution`, `date`)
-    # Evelyn.json: "Certifications/Awards": [] -> this implies it could be mixed.
-    # Let's assume cert_list is purely certifications for now.
-    if not cert_list:
-        return None
-    
-    lines = ["\\section{Certifications}", "  \\resumeSubHeadingListStart"]
+    if not cert_list: return None
+    content_lines = []
     for cert in cert_list:
         name = fix_latex_special_chars(cert.get("certification"))
+        if not name: continue # Skip if no name
         institution = fix_latex_special_chars(cert.get("institution"))
         date = fix_latex_special_chars(cert.get("date"))
-        
-        # Using resumeSubheading for a structured look, though it's typically for job/edu.
-        # We can simplify if needed.
-        lines.append(f"    \\resumeSubheading")
-        lines.append(f"      {{{name}}}{{{date}}}") 
-        lines.append(f"      {{{institution}}}{{}}") # Institution on the left, nothing on the right
-            
-    lines.append("  \\resumeSubHeadingListEnd")
-    lines.append("")
-    return "\n".join(lines)
+        content_lines.extend([
+            r"    \resumeSubheading",
+            f"      {{{name}}}{{{date}}}",
+            f"      {{{institution}}}{{}}"
+        ])
+    if not content_lines: return None
+    final_latex_parts = [r"\section{Certifications}", r"  \resumeSubHeadingListStart"]
+    final_latex_parts.extend(content_lines)
+    final_latex_parts.extend([r"  \resumeSubHeadingListEnd", ""])
+    return "\n".join(final_latex_parts)
 
 def _generate_awards_section(awards_list: Optional[List[Dict[str, Any]]]) -> Optional[str]:
-    # Schema: awards (list of dicts: `title`, `issuer`, `date`, `description`)
-    # Evelyn.json: "Certifications/Awards": []
-    if not awards_list:
-        return None
-        
-    lines = ["\\section{Awards}", "  \\resumeSubHeadingListStart"]
+    if not awards_list: return None
+    content_lines = []
     for award in awards_list:
         title = fix_latex_special_chars(award.get("title"))
+        if not title: continue
         issuer = fix_latex_special_chars(award.get("issuer"))
         date = fix_latex_special_chars(award.get("date"))
         description = fix_latex_special_chars(award.get("description"))
-
-        lines.append(f"    \\resumeSubheading")
-        lines.append(f"      {{{title}}}{{{date}}}")
-        lines.append(f"      {{{issuer}}}{{}}") # Issuer on the left
-
+        content_lines.extend([
+            r"    \resumeSubheading",
+            f"      {{{title}}}{{{date}}}",
+            f"      {{{issuer}}}{{}}"
+        ])
         if description:
-            lines.append(r"      \resumeItemListStart")
-            lines.append(f"        \\resumeItem{{{description}}}")
-            lines.append(r"      \resumeItemListEnd")
-            
-    lines.append("  \\resumeSubHeadingListEnd")
-    lines.append("")
-    return "\n".join(lines)
+            content_lines.extend([
+                r"      \resumeItemListStart",
+                f"        \\resumeItem{{{description}}}",
+                r"      \resumeItemListEnd"
+            ])
+    if not content_lines: return None
+    final_latex_parts = [r"\section{Awards}", r"  \resumeSubHeadingListStart"]
+    final_latex_parts.extend(content_lines)
+    final_latex_parts.extend([r"  \resumeSubHeadingListEnd", ""])
+    return "\n".join(final_latex_parts)
 
 
 def _generate_involvement_section(involvement_list: Optional[List[Dict[str, Any]]]) -> Optional[str]:
-    # Schema: involvement or leadership (list of dicts: `organization`, `position`, `date`, `responsibilities` list)
-    # Evelyn.json: "Misc": { "Leadership": { "Event Name": { "dates": ..., "responsibilities": ...}}}
-    # This is quite different. The sample json has a nested structure under "Misc" -> "Leadership"
-    # The schema expects a flat list of involvement dicts.
-    # This template function will try to handle the schema's flat list first.
-    # If that's not found, it will look for the Evelyn.json structure.
-
-    if not involvement_list: # This is for the direct schema key 'involvement' or 'leadership'
-        return None
-
-    lines = ["\\section{Leadership \\& Involvement}", "  \\resumeSubHeadingListStart"] # Escape ampersand in section title
-    
-    for item in involvement_list: # Assuming schema-compliant list
+    if not involvement_list: return None
+    content_lines = []
+    for item in involvement_list:
         organization = fix_latex_special_chars(item.get("organization"))
         position = fix_latex_special_chars(item.get("position"))
-        
-        date_val = item.get("date") # Schema suggests 'date' (string) or 'dates' (dict)
+        if not organization and not position: continue
+        date_val = item.get("date")
         dates_str = ""
         if isinstance(date_val, dict):
             start = fix_latex_special_chars(date_val.get("start_date"))
@@ -404,63 +319,54 @@ def _generate_involvement_section(involvement_list: Optional[List[Dict[str, Any]
             dates_str = f"{start} -- {end}" if start or end else ""
             if end and end.lower() == 'present': dates_str = f"{start} -- Present"
             elif not end and start : dates_str = start
-        elif isinstance(date_val, str):
-            dates_str = fix_latex_special_chars(date_val)
-
-        lines.append(f"    \\resumeSubheading")
-        lines.append(f"      {{{position}}}{{{dates_str}}}")
-        lines.append(f"      {{{organization}}}{{}}")
-
+        elif isinstance(date_val, str): dates_str = fix_latex_special_chars(date_val)
+        content_lines.extend([
+            r"    \resumeSubheading",
+            f"      {{{position}}}{{{dates_str}}}",
+            f"      {{{organization}}}{{}}"
+        ])
         responsibilities = item.get("responsibilities")
         if responsibilities and isinstance(responsibilities, list):
-            lines.append(r"      \resumeItemListStart")
+            content_lines.append(r"      \resumeItemListStart")
             for resp in responsibilities:
-                lines.append(f"        \\resumeItem{{{fix_latex_special_chars(resp)}}}")
-            lines.append(r"      \resumeItemListEnd")
-            
-    lines.append("  \\resumeSubHeadingListEnd")
-    lines.append("")
-    return "\n".join(lines)
+                if resp: content_lines.append(f"        \\resumeItem{{{fix_latex_special_chars(resp)}}}")
+            content_lines.append(r"      \resumeItemListEnd")
+    if not content_lines: return None
+    final_latex_parts = [r"\section{Leadership \& Involvement}", r"  \resumeSubHeadingListStart"]
+    final_latex_parts.extend(content_lines)
+    final_latex_parts.extend([r"  \resumeSubHeadingListEnd", ""])
+    return "\n".join(final_latex_parts)
 
 def _generate_misc_leadership_section(misc_data: Optional[Dict[str, Any]]) -> Optional[str]:
-    """Specifically handles the Evelyn.json Misc.Leadership structure."""
-    if not misc_data or not isinstance(misc_data, dict):
-        return None
-    
+    if not misc_data or not isinstance(misc_data, dict): return None
     leadership_data = misc_data.get("Leadership")
-    if not leadership_data or not isinstance(leadership_data, dict):
-        return None
-
-    lines = ["\\section{Leadership \\& Activities}", "  \\resumeSubHeadingListStart"] # Escape ampersand in section title
-    
+    if not leadership_data or not isinstance(leadership_data, dict): return None
+    content_lines = []
     for event_name, details in leadership_data.items():
         name = fix_latex_special_chars(event_name)
-        
+        if not name: continue
         dates_dict = details.get("dates", {})
         start_date = fix_latex_special_chars(dates_dict.get("start_date"))
         end_date = fix_latex_special_chars(dates_dict.get("end_date"))
         dates_str = f"{start_date} -- {end_date}" if start_date or end_date else ""
-        if end_date and end_date.lower() == 'present':
-             dates_str = f"{start_date} -- Present"
-        elif not end_date and start_date:
-             dates_str = start_date
-        
-        # Using resumeSubheading: Event Name on left, Dates on right.
-        # No clear "position" or "organization" like in the schema, so event name is primary.
-        lines.append(f"    \\resumeSubheading")
-        lines.append(f"      {{\\textbf{{{name}}}}}{{{dates_str}}}") # Event name bolded
-        lines.append(f"      {{}}{{}}") # Empty second line of subheading
-        
-        responsibilities = details.get("responsibilities/achievements") # From Evelyn.json
+        if end_date and end_date.lower() == 'present': dates_str = f"{start_date} -- Present"
+        elif not end_date and start_date: dates_str = start_date
+        content_lines.extend([
+            r"    \resumeSubheading",
+            f"      {{\\textbf{{{name}}}}}{{{dates_str}}}",
+            r"      {}{}"
+        ])
+        responsibilities = details.get("responsibilities/achievements")
         if responsibilities and isinstance(responsibilities, list):
-            lines.append(r"      \resumeItemListStart")
+            content_lines.append(r"      \resumeItemListStart")
             for resp in responsibilities:
-                lines.append(f"        \\resumeItem{{{fix_latex_special_chars(resp)}}}")
-            lines.append(r"      \resumeItemListEnd")
-            
-    lines.append("  \\resumeSubHeadingListEnd")
-    lines.append("")
-    return "\n".join(lines)
+                if resp: content_lines.append(f"        \\resumeItem{{{fix_latex_special_chars(resp)}}}")
+            content_lines.append(r"      \resumeItemListEnd")
+    if not content_lines: return None
+    final_latex_parts = [r"\section{Leadership \& Activities}", r"  \resumeSubHeadingListStart"]
+    final_latex_parts.extend(content_lines)
+    final_latex_parts.extend([r"  \resumeSubHeadingListEnd", ""])
+    return "\n".join(final_latex_parts)
 
 
 def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = None) -> str:
@@ -646,31 +552,56 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
     involvement_data = data.get("involvement") or data.get("leadership") # Schema direct keys
     misc_data = data.get("Misc") # For Evelyn.json specific "Misc" -> "Leadership"
 
+    print("\n--- Section Generation Log ---") # Restore print
+    section_processing_log = []
 
-    # Generate LaTeX for each section
+    # Generate LaTeX for each section and log
     header_tex = _generate_header_section(personal_info_data)
+    section_processing_log.append(f"Header section: {'Included' if header_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
+
     objective_tex = _generate_objective_section(objective_data)
+    section_processing_log.append(f"Summary/Objective section: {'Included' if objective_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
+
     education_tex = _generate_education_section(education_data)
+    section_processing_log.append(f"Education section: {'Included' if education_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
+
     experience_tex = _generate_experience_section(experience_data)
+    section_processing_log.append(f"Experience section: {'Included' if experience_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
+
     projects_tex = _generate_projects_section(projects_data)
-    skills_tex = _generate_skills_section(skills_data) # Handles complex skills structure
+    section_processing_log.append(f"Projects section: {'Included' if projects_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
+
+    skills_tex = _generate_skills_section(skills_data)
+    section_processing_log.append(f"Skills section: {'Included' if skills_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
+
     languages_tex = _generate_languages_section(languages_data)
+    section_processing_log.append(f"Languages section: {'Included' if languages_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
+
     certifications_tex = _generate_certifications_section(certifications_data)
+    section_processing_log.append(f"Certifications section: {'Included' if certifications_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
+
     awards_tex = _generate_awards_section(awards_data)
+    section_processing_log.append(f"Awards section: {'Included' if awards_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
     
     involvement_tex = None
     if involvement_data: # Prioritize schema's direct key
         involvement_tex = _generate_involvement_section(involvement_data)
+        section_processing_log.append(f"Involvement/Leadership section (direct key): {'Included' if involvement_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
     elif misc_data: # Fallback to Evelyn.json's Misc.Leadership structure
         involvement_tex = _generate_misc_leadership_section(misc_data)
+        section_processing_log.append(f"Misc/Leadership section (fallback): {'Included' if involvement_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
+    else:
+        section_processing_log.append("Involvement/Leadership/Misc section: Skipped (no relevant data found)") # This one was already correct
 
+    print("\n".join(section_processing_log)) # Restore print
+    print("--- End Section Generation Log ---\n") # Restore print
 
     # Assemble the document
     content_parts = [
         preamble,
         doc_start,
         header_tex,
-        objective_tex, # Or summary
+        objective_tex,
         education_tex,
         experience_tex,
         projects_tex,
@@ -678,7 +609,7 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
         languages_tex,
         certifications_tex,
         awards_tex,
-        involvement_tex, # Covers leadership/misc as well
+        involvement_tex,
         r"""
 \end{document}
 """
