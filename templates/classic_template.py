@@ -34,6 +34,22 @@ def fix_latex_special_chars(text: Optional[Any]) -> str:
         
     return text
 
+# NEW PLACEHOLDER FUNCTION for future AI-based bolding
+def future_chatgpt_bolding(text_content: str, context: Optional[str] = None) -> str:
+    """
+    Placeholder for future AI-based bolding logic.
+    For now, it just escapes LaTeX special characters.
+    The 'context' argument can be used later to give the AI more information.
+    """
+    # In the future, this function would:
+    # 1. Send text_content (and optionally context) to ChatGPT API.
+    # 2. Receive response (e.g., text with markdown-like bolding **word**).
+    # 3. Parse the response, LaTeX escape non-bolded parts, and wrap bolded parts
+    #    (after escaping their content) in \textbf{...}.
+    #    Example: "Text with **bold word**." -> "Text with \\textbf{bold word}."
+    # For now, just ensure the text is LaTeX safe:
+    return fix_latex_special_chars(text_content)
+
 
 def _generate_header_section(personal_info: Optional[Dict[str, Any]]) -> Optional[str]:
     if not personal_info:
@@ -166,7 +182,10 @@ def _generate_experience_section(experience_list: Optional[List[Dict[str, Any]]]
         if responsibilities and isinstance(responsibilities, list):
             content_lines.append(r"      \resumeItemListStart")
             for resp in responsibilities:
-                if resp: content_lines.append(f"        \\resumeItem{{{fix_latex_special_chars(resp)}}}")
+                if resp: 
+                    # Use the new bolding hook
+                    processed_resp = future_chatgpt_bolding(str(resp), context="experience_responsibility")
+                    content_lines.append(f"        \resumeItem{{{processed_resp}}}")
             content_lines.append(r"      \resumeItemListEnd")
     if not content_lines: return None
     final_latex_parts = [r"\section{Experience}", r"  \resumeSubHeadingListStart"] + content_lines + [r"  \resumeSubHeadingListEnd", ""]
@@ -191,6 +210,9 @@ def _generate_projects_section(project_list: Optional[List[Dict[str, Any]]]) -> 
         
         heading_title_part = f"\\textbf{{{title}}}"
         if tech_used:
+            # For technologies, we usually want them escaped but perhaps not AI-bolded individually here
+            # unless the AI is specifically told to consider them for emphasis.
+            # For now, just escape them directly.
             tech_str = ", ".join(fix_latex_special_chars(t) for t in tech_used) if isinstance(tech_used, list) else fix_latex_special_chars(tech_used)
             if tech_str: heading_title_part += f" $|$ \\emph{{{tech_str}}}"
             
@@ -201,9 +223,14 @@ def _generate_projects_section(project_list: Optional[List[Dict[str, Any]]]) -> 
             content_lines.append(r"          \resumeItemListStart")
             if isinstance(description, list):
                 for item in description:
-                    if item: content_lines.append(f"            \\resumeItem{{{fix_latex_special_chars(item)}}}")
+                    if item: 
+                        # Use the new bolding hook
+                        processed_item = future_chatgpt_bolding(str(item), context="project_description_item")
+                        content_lines.append(f"            \resumeItem{{{processed_item}}}")
             else:
-                content_lines.append(f"            \\resumeItem{{{fix_latex_special_chars(description)}}}")
+                # Use the new bolding hook for single string description
+                processed_description = future_chatgpt_bolding(str(description), context="project_description")
+                content_lines.append(f"            \resumeItem{{{processed_description}}}")
             content_lines.append(r"          \resumeItemListEnd")
     if not content_lines: return None
     final_latex_parts = [r"\section{Projects}", r"    \resumeSubHeadingListStart"] + content_lines + [r"    \resumeSubHeadingListEnd", ""]
