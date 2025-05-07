@@ -42,52 +42,62 @@ def _generate_header_section(personal_info: Optional[Dict[str, Any]]) -> Optiona
     name = fix_latex_special_chars(personal_info.get("name"))
     email = personal_info.get("email")  # Raw email, will handle special chars in href
     phone = fix_latex_special_chars(personal_info.get("phone"))
-    linkedin = fix_latex_special_chars(personal_info.get("linkedin")) # Assuming 'linkedin' key
-    website = fix_latex_special_chars(personal_info.get("website")) # Assuming 'website' key
-    github = fix_latex_special_chars(personal_info.get("github")) # Assuming 'github' key
+    
+    # Try to get LinkedIn from specific 'linkedin' key first, then 'website/LinkedIn'
+    linkedin_value = personal_info.get("linkedin")
+    if not linkedin_value:
+        website_linkedin_value = personal_info.get("website/LinkedIn")
+        if website_linkedin_value and ("linkedin.com" in website_linkedin_value or "linkedin.com" in fix_latex_special_chars(website_linkedin_value).lower()):
+            linkedin_value = fix_latex_special_chars(website_linkedin_value)
+        elif website_linkedin_value: # If it's not a linkedin URL, treat as generic website
+             personal_info["website"] = website_linkedin_value # so it can be picked by website logic below
+    else:
+        linkedin_value = fix_latex_special_chars(linkedin_value)
+
+    website = fix_latex_special_chars(personal_info.get("website"))
+    github = fix_latex_special_chars(personal_info.get("github"))
     location = fix_latex_special_chars(personal_info.get("location"))
 
     lines = []
     if name:
         lines.append(r"\begin{center}")
-        lines.append(f"    \\textbf{{\\Huge \\scshape {name}}} \\\\ \\vspace{{1pt}}")
+        lines.append(f"    \\textbf{{{{\Huge \\scshape {{name}}}}}} \\ \\ \\vspace{{{{1pt}}}}}}")
     
     contact_parts = []
     if phone:
         contact_parts.append(phone)
     if email:
-        # Special handling for email to avoid underscore issues
-        # Use the raw email for mailto but escape underscores properly for display
-        email_display = email.replace("_", r"\_")  # Proper LaTeX escaping
-        contact_parts.append(f"\\href{{mailto:{email}}}{{\\underline{{{email_display}}}}}")
-    if linkedin: # Assuming 'linkedin' key from schema
-        linkedin_url = linkedin
-        if not linkedin.startswith("http"):
-            linkedin_url = f"https://{linkedin}" # Basic assumption
-        contact_parts.append(f"\\href{{{linkedin_url}}}{{\\underline{{{linkedin}}}}}")
-    if github: # Assuming 'github' key
+        email_display = email.replace("_", r"\_")
+        contact_parts.append(f"\\href{{mailto:{email}}}{{\\underline{{{{{email_display}}}}}}}")
+    
+    if linkedin_value:
+        linkedin_url = linkedin_value
+        if not linkedin_value.startswith("http") and not "mailto:" in linkedin_value:
+            linkedin_url = f"https://{linkedin_value.replace(r'\_', '_')}" # Use unescaped for URL
+        contact_parts.append(f"\\href{{{{{linkedin_url}}}}}{{\\underline{{{{{linkedin_value}}}}}}}")
+
+    if github:
         github_url = github
         if not github.startswith("http"):
-            github_url = f"https://{github}" # Basic assumption
-        contact_parts.append(f"\\href{{{github_url}}}{{\\underline{{{github}}}}}")
-    if website: # Assuming 'website' key
+            github_url = f"https://{github.replace(r'\_', '_')}"
+        contact_parts.append(f"\\href{{{{{github_url}}}}}{{\\underline{{{{{github}}}}}}}")
+    
+    if website: # This will now also pick up website/LinkedIn if it wasn't a LinkedIn URL
         website_url = website
-        if not website.startswith("http"): # Basic check for protocol
-             website_url = f"http://{website}"
-        contact_parts.append(f"\\href{{{website_url}}}{{\\underline{{{website}}}}}")
+        if not website.startswith("http") and not "mailto:" in website:
+             website_url = f"http://{website.replace(r'\_', '_')}"
+        contact_parts.append(f"\\href{{{{{website_url}}}}}{{\\underline{{{{{website}}}}}}}")
+
+    # Add location to contact_parts so it gets the separator
+    if location:
+        contact_parts.append(location)
 
     if contact_parts:
         lines.append(f"    \\small {' $|$ '.join(contact_parts)}")
     
-    if location and not name: # If only location is there, might look odd with just center
-         lines.append(f"    \\small {location}")
-    elif location and name: # Add location if name is also present
-        lines.append(f"    \\small {location}")
-
-
-    if name: # Only add end{center} if we started it
+    if name: 
         lines.append(r"\end{center}")
-        lines.append("") # Add a newline for spacing
+        lines.append("") 
 
     return "\n".join(lines) if lines else None
 
@@ -351,11 +361,10 @@ def _generate_misc_leadership_section(misc_data: Optional[Dict[str, Any]]) -> Op
         dates_str = f"{start_date} -- {end_date}" if start_date or end_date else ""
         if end_date and end_date.lower() == 'present': dates_str = f"{start_date} -- Present"
         elif not end_date and start_date: dates_str = start_date
-        content_lines.extend([
-            r"    \resumeSubheading",
-            f"      {{\\textbf{{{name}}}}}{{{dates_str}}}",
-            r"      {}{}"
-        ])
+        
+        # Use the new single-line subheading command
+        content_lines.append(fr"    \resumeSubheadingSingleLine{{{name}}}{{{dates_str}}}")
+
         responsibilities = details.get("responsibilities/achievements")
         if responsibilities and isinstance(responsibilities, list):
             content_lines.append(r"      \resumeItemListStart")
@@ -502,6 +511,14 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
 \newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
 
 \renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+% New command for single line subheading
+\newcommand{\resumeSubheadingSingleLine}[2]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
 
 \newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
 \newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
