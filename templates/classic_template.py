@@ -1,8 +1,48 @@
+import dotenv # Import dotenv
+
+# Load environment variables from .env file
+dotenv.load_dotenv()
+
 from typing import Dict, Any, Optional, List
 import re
+import openai
+import os
+import json
+import hashlib
 
 # Default page height if not specified by the generator (e.g. if auto-sizing is off and no specific height is given)
 DEFAULT_TEMPLATE_PAGE_HEIGHT_INCHES = 11.0 
+
+# Cache for OpenAI API responses
+API_CACHE: Dict[str, Any] = {}
+OPENAI_CLIENT: Optional[openai.OpenAI] = None # Store the client instance
+OPENAI_API_KEY_LOADED = False # Flag to check if API key was successfully loaded
+
+def _initialize_openai_client() -> bool:
+    """Initializes the OpenAI client if not already done. Returns True if successful or already initialized."""
+    global OPENAI_CLIENT, OPENAI_API_KEY_LOADED
+    if OPENAI_CLIENT is not None and OPENAI_API_KEY_LOADED:
+        return True
+    
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        # Only print warning once, or find a better way to log this if it becomes noisy.
+        # For now, let's assume it's okay to print if called when client is None.
+        if OPENAI_CLIENT is None: # Avoid repeated warnings if called multiple times without key
+            print("AI HINT: OPENAI_API_KEY environment variable not set. Skill/metric highlighting will be skipped.")
+        OPENAI_API_KEY_LOADED = False
+        return False
+    
+    try:
+        OPENAI_CLIENT = openai.OpenAI(api_key=api_key)
+        OPENAI_API_KEY_LOADED = True
+        print("AI HINT: OpenAI client initialized successfully for skill/metric highlighting.")
+        return True
+    except Exception as e:
+        if OPENAI_CLIENT is None: # Avoid repeated warnings
+            print(f"AI HINT: Failed to initialize OpenAI client: {e}. Skill/metric highlighting will be skipped.")
+        OPENAI_API_KEY_LOADED = False
+        return False
 
 def fix_latex_special_chars(text: Optional[Any]) -> str:
     """
@@ -25,30 +65,15 @@ def fix_latex_special_chars(text: Optional[Any]) -> str:
         ("_", r"\_"),
         ("{", r"\{"),
         ("}", r"\}"),
-        ("~", r"\textasciitilde{}"),
+        ("~", r"\textasciitilde{}"), # Standard tilde (U+007E)
         ("^", r"\textasciicircum{}"),
+        ("∼", r"\textasciitilde{}"), # Tilde operator (U+223C) -> also use textasciitilde
     ]
 
     for old, new in replacements:
         text = text.replace(old, new)
         
     return text
-
-# NEW PLACEHOLDER FUNCTION for future AI-based bolding
-def future_chatgpt_bolding(text_content: str, context: Optional[str] = None) -> str:
-    """
-    Placeholder for future AI-based bolding logic.
-    For now, it just escapes LaTeX special characters.
-    The 'context' argument can be used later to give the AI more information.
-    """
-    # In the future, this function would:
-    # 1. Send text_content (and optionally context) to ChatGPT API.
-    # 2. Receive response (e.g., text with markdown-like bolding **word**).
-    # 3. Parse the response, LaTeX escape non-bolded parts, and wrap bolded parts
-    #    (after escaping their content) in \textbf{...}.
-    #    Example: "Text with **bold word**." -> "Text with \\textbf{bold word}."
-    # For now, just ensure the text is LaTeX safe:
-    return fix_latex_special_chars(text_content)
 
 
 def _generate_header_section(personal_info: Optional[Dict[str, Any]]) -> Optional[str]:
@@ -119,12 +144,31 @@ def _generate_objective_section(objective: Optional[str]) -> Optional[str]:
   {fix_latex_special_chars(objective)}
 """
 
+def _parse_location_dict(location_data: Any) -> str:
+    """Helper function to parse a location, which can be a string or a dict."""
+    if isinstance(location_data, dict):
+        city = location_data.get("city")
+        state = location_data.get("state")
+        # country = location_data.get("country") # Optional: include country if needed
+        parts = []
+        if city and isinstance(city, str):
+            parts.append(city)
+        if state and isinstance(state, str):
+            parts.append(state)
+        return fix_latex_special_chars(", ".join(parts))
+    elif isinstance(location_data, str):
+        return fix_latex_special_chars(location_data)
+    return "" # Return empty string if None or other type
+
 def _generate_education_section(education_list: Optional[List[Dict[str, Any]]]) -> Optional[str]:
     if not education_list: return None
     content_lines = []
     for edu in education_list:
         uni = fix_latex_special_chars(edu.get("institution") or edu.get("university"))
-        loc = fix_latex_special_chars(edu.get("location"))
+        # MODIFIED location handling
+        raw_loc = edu.get("location")
+        loc_str = _parse_location_dict(raw_loc)
+        
         degree_parts = [fix_latex_special_chars(edu.get("degree"))]
         if edu.get("specialization"): degree_parts.append(fix_latex_special_chars(edu.get("specialization")))
         degree_str = ", ".join(filter(None, degree_parts))
@@ -136,7 +180,7 @@ def _generate_education_section(education_list: Optional[List[Dict[str, Any]]]) 
 
         if uni and degree_str:
             content_lines.append(r"    \resumeSubheading")
-            content_lines.append(f"      {{{uni}}}{{{loc}}}")
+            content_lines.append(f"      {{{uni}}}{{{loc_str}}}") # Use parsed loc_str
             content_lines.append(f"      {{{degree_str}}}{{{dates}}}")
             gpa = edu.get("gpa")
             honors = fix_latex_special_chars(edu.get("honors"))
@@ -160,43 +204,61 @@ def _generate_education_section(education_list: Optional[List[Dict[str, Any]]]) 
     final_latex_parts = [r"\section{Education}", r"  \resumeSubHeadingListStart"] + content_lines + [r"  \resumeSubHeadingListEnd", ""]
     return "\n".join(final_latex_parts)
 
-def _generate_experience_section(experience_list: Optional[List[Dict[str, Any]]]) -> Optional[str]:
+def _generate_experience_section(experience_list: Optional[List[Dict[str, Any]]], identified_skills: List[str], identified_metrics: List[str]) -> Optional[str]:
     if not experience_list: return None
     content_lines = []
     for exp in experience_list:
         company = fix_latex_special_chars(exp.get("company"))
         position = fix_latex_special_chars(exp.get("position") or exp.get("title"))
         if not company and not position: continue
-        location = fix_latex_special_chars(exp.get("location"))
-        dates_dict = exp.get("dates", {})
-        start_date = fix_latex_special_chars(dates_dict.get("start_date"))
-        end_date = fix_latex_special_chars(dates_dict.get("end_date"))
-        dates_str = f"{start_date} -- {end_date}" if start_date or end_date else ""
-        if end_date and end_date.lower() == 'present': dates_str = f"{start_date} -- Present"
-        elif not end_date and start_date: dates_str = start_date
+        # MODIFIED location handling
+        raw_loc = exp.get("location")
+        loc_str = _parse_location_dict(raw_loc)
+        
+        dates_val = exp.get("dates")
+        dates_str = ""
+        if isinstance(dates_val, dict):
+            start_date = fix_latex_special_chars(dates_val.get("start_date"))
+            end_date = fix_latex_special_chars(dates_val.get("end_date"))
+            dates_str = f"{start_date} -- {end_date}" if start_date or end_date else ""
+            if end_date and end_date.lower() == 'present': 
+                dates_str = f"{start_date} -- Present"
+            elif not end_date and start_date: 
+                dates_str = start_date
+        elif isinstance(dates_val, str):
+            dates_str = fix_latex_special_chars(dates_val)
         
         content_lines.append(r"    \resumeSubheading")
         content_lines.append(f"      {{{position}}}{{{dates_str}}}")
-        content_lines.append(f"      {{{company}}}{{{location}}}")
-        responsibilities = exp.get("responsibilities") or exp.get("responsibilities/achievements")
-        if responsibilities and isinstance(responsibilities, list):
+        content_lines.append(f"      {{{company}}}{{{loc_str}}}") # Use parsed loc_str
+        
+        responsibilities_raw = exp.get("responsibilities") or exp.get("responsibilities/achievements")
+        if responsibilities_raw and isinstance(responsibilities_raw, list):
+            # Filter out empty or None responsibilities before processing
+            valid_resps = [r for r in responsibilities_raw if isinstance(r, str) and r.strip()]
+            if valid_resps:
+                content_lines.append(r"      \resumeItemListStart")
+                for resp_raw in valid_resps:
+                    formatted_resp = format_bullet_with_highlights(resp_raw, identified_skills, identified_metrics)
+                    content_lines.append(f"        \\resumeItem{{{formatted_resp}}}")
+                content_lines.append(r"      \resumeItemListEnd")
+        elif responsibilities_raw and isinstance(responsibilities_raw, str) and responsibilities_raw.strip(): # Handle single string responsibility
             content_lines.append(r"      \resumeItemListStart")
-            for resp in responsibilities:
-                if resp: 
-                    # Use the new bolding hook
-                    processed_resp = future_chatgpt_bolding(str(resp), context="experience_responsibility")
-                    content_lines.append(f"        \resumeItem{{{processed_resp}}}")
+            formatted_resp = format_bullet_with_highlights(responsibilities_raw, identified_skills, identified_metrics)
+            content_lines.append(f"        \\resumeItem{{{formatted_resp}}}")
             content_lines.append(r"      \resumeItemListEnd")
+            
     if not content_lines: return None
     final_latex_parts = [r"\section{Experience}", r"  \resumeSubHeadingListStart"] + content_lines + [r"  \resumeSubHeadingListEnd", ""]
     return "\n".join(final_latex_parts)
 
-def _generate_projects_section(project_list: Optional[List[Dict[str, Any]]]) -> Optional[str]:
+def _generate_projects_section(project_list: Optional[List[Dict[str, Any]]], identified_skills: List[str], identified_metrics: List[str]) -> Optional[str]:
     if not project_list: return None
     content_lines = []
     for proj in project_list:
         title = fix_latex_special_chars(proj.get("title"))
         if not title: continue
+            
         dates_val = proj.get("dates") or proj.get("date")
         dates_str = ""
         if isinstance(dates_val, dict):
@@ -204,75 +266,85 @@ def _generate_projects_section(project_list: Optional[List[Dict[str, Any]]]) -> 
             end = fix_latex_special_chars(dates_val.get("end_date"))
             dates_str = f"{start} -- {end}" if start or end else ""
             if end and end.lower() == 'present': dates_str = f"{start} -- Present"
-            elif not end and start : dates_str = start
+            elif not end and start: dates_str = start
         elif isinstance(dates_val, str): dates_str = fix_latex_special_chars(dates_val)
-        tech_used = proj.get("technologies") or proj.get("technologies_used")
         
+        tech_used = proj.get("technologies") or proj.get("technologies_used")
         heading_title_part = f"\\textbf{{{title}}}"
         if tech_used:
-            # For technologies, we usually want them escaped but perhaps not AI-bolded individually here
-            # unless the AI is specifically told to consider them for emphasis.
-            # For now, just escape them directly.
-            tech_str = ", ".join(fix_latex_special_chars(t) for t in tech_used) if isinstance(tech_used, list) else fix_latex_special_chars(tech_used)
-            if tech_str: heading_title_part += f" $|$ \\emph{{{tech_str}}}"
+            processed_tech = []
+            if isinstance(tech_used, list):
+                for t in tech_used:
+                    if isinstance(t, str) and t.strip():
+                        # Apply highlighting to individual tech stack items if they are also in 'identified_skills'
+                        # This is a simple direct check; more complex logic might be desired if tech_used items are phrases
+                        if t in identified_skills:
+                            processed_tech.append(format_bullet_with_highlights(t, identified_skills, identified_metrics))
+                        else:
+                            processed_tech.append(fix_latex_special_chars(t))
+            elif isinstance(tech_used, str) and tech_used.strip():
+                if tech_used in identified_skills:
+                     processed_tech.append(format_bullet_with_highlights(tech_used, identified_skills, identified_metrics))
+                else:
+                    processed_tech.append(fix_latex_special_chars(tech_used))
+            
+            if processed_tech:
+                 tech_str = ", ".join(processed_tech)
+                 if tech_str: heading_title_part += f" $|$ \\emph{{{tech_str}}}" # Emphasize tech stack
             
         content_lines.append(r"      \resumeProjectHeading")
         content_lines.append(f"          {{{heading_title_part}}}{{{dates_str}}}")
-        description = proj.get("description")
-        if description:
+        
+        description_raw = proj.get("description")
+        if description_raw:
             content_lines.append(r"          \resumeItemListStart")
-            if isinstance(description, list):
-                for item in description:
-                    if item: 
-                        # Use the new bolding hook
-                        processed_item = future_chatgpt_bolding(str(item), context="project_description_item")
-                        content_lines.append(f"            \resumeItem{{{processed_item}}}")
-            else:
-                # Use the new bolding hook for single string description
-                processed_description = future_chatgpt_bolding(str(description), context="project_description")
-                content_lines.append(f"            \resumeItem{{{processed_description}}}")
+            if isinstance(description_raw, list):
+                valid_descs = [d for d in description_raw if isinstance(d, str) and d.strip()]
+                for desc_item_raw in valid_descs:
+                    formatted_desc = format_bullet_with_highlights(desc_item_raw, identified_skills, identified_metrics)
+                    content_lines.append(f"            \\resumeItem{{{formatted_desc}}}")
+            elif isinstance(description_raw, str) and description_raw.strip(): # Single string description
+                formatted_desc = format_bullet_with_highlights(description_raw, identified_skills, identified_metrics)
+                content_lines.append(f"            \\resumeItem{{{formatted_desc}}}")
             content_lines.append(r"          \resumeItemListEnd")
+            
     if not content_lines: return None
     final_latex_parts = [r"\section{Projects}", r"    \resumeSubHeadingListStart"] + content_lines + [r"    \resumeSubHeadingListEnd", ""]
     return "\n".join(final_latex_parts)
 
 
 def _generate_skills_section(skills_dict: Optional[Dict[str, Any]]) -> Optional[str]:
-    if not skills_dict: 
-        return None
-
-    all_skill_parts = [] # This will hold all formatted skill strings
-
-    # Process Technical Skills
+    if not skills_dict: return None
     technical_skills_data = skills_dict.get("Technical Skills")
-    if isinstance(technical_skills_data, dict): # Categorized technical skills
-        for category, skills_list in technical_skills_data.items():
-            category_name = fix_latex_special_chars(category)
-            if category_name and isinstance(skills_list, list) and skills_list:
-                processed_skills = [fix_latex_special_chars(s) for s in skills_list if s]
-                if processed_skills:
-                    all_skill_parts.append(f"\\textbf{{{category_name}}}: {', '.join(processed_skills)}")
-    elif isinstance(technical_skills_data, list): # Flat list of technical skills
-        processed_flat_skills = [fix_latex_special_chars(s) for s in technical_skills_data if s]
-        if processed_flat_skills:
-            all_skill_parts.append(f"\\textbf{{Technical Skills}}: {', '.join(processed_flat_skills)}")
+    skills_to_process = {}
+    if isinstance(technical_skills_data, dict): skills_to_process = technical_skills_data
+    elif isinstance(skills_dict, dict) and not technical_skills_data : skills_to_process = skills_dict
     
-    # Process Soft Skills
+    category_lines_content = []
+    if skills_to_process:
+        for category, skills_list in skills_to_process.items():
+            if skills_list and isinstance(skills_list, list):
+                skills_str = ", ".join(fix_latex_special_chars(s) for s in skills_list if s)
+                if skills_str: category_lines_content.append(f"     \\textbf{{{fix_latex_special_chars(category)}}}{{: {skills_str}}}")
+    
     soft_skills_list = skills_dict.get("Soft Skills")
-    if isinstance(soft_skills_list, list) and soft_skills_list:
+    soft_skills_content_str = ""
+    if soft_skills_list and isinstance(soft_skills_list, list):
         processed_soft_skills = [fix_latex_special_chars(s) for s in soft_skills_list if s]
-        if processed_soft_skills: 
-            all_skill_parts.append(f"\\textbf{{Soft Skills}}: {', '.join(processed_soft_skills)}")
+        if processed_soft_skills: soft_skills_content_str = f"     \\textbf{{Soft Skills}}{{: {', '.join(processed_soft_skills)}}}"
 
-    if not all_skill_parts:
-        return None # No skills content at all
+    if not category_lines_content and not soft_skills_content_str: return None
 
-    lines = [r"\section{Skills}"] 
-    lines.append(r"\begin{itemize}[leftmargin=0.15in, label={}, itemsep=1pt, topsep=1pt]")
-    lines.append(r"    \small{\item{%")
-    lines.append(" \\\\ ".join(all_skill_parts)) # Join all parts with LaTeX newline
-    lines.append(r"    }}%")
-    lines.append(r"\end{itemize}")
+    lines = [r"\section{Technical Skills}"]
+    lines.append(r" \begin{itemize}[leftmargin=0.15in, label={}]")
+    lines.append(r"    \small{\item{")
+    if category_lines_content:
+        lines.append(" \\\\ ".join(category_lines_content))
+        if soft_skills_content_str: lines.append(r" \\ ")
+    if soft_skills_content_str:
+        lines.append(soft_skills_content_str)
+    lines.append(r"    }}")
+    lines.append(r" \end{itemize}")
     lines.append("")
     return "\n".join(lines)
 
@@ -347,15 +419,21 @@ def _generate_involvement_section(involvement_list: Optional[List[Dict[str, Any]
         organization = fix_latex_special_chars(item.get("organization"))
         position = fix_latex_special_chars(item.get("position"))
         if not organization and not position: continue
-        date_val = item.get("date")
+            
+        date_val = item.get("date") # Get raw date value
         dates_str = ""
-        if isinstance(date_val, dict):
+        if isinstance(date_val, dict): # If it's a dictionary, process start/end
             start = fix_latex_special_chars(date_val.get("start_date"))
             end = fix_latex_special_chars(date_val.get("end_date"))
             dates_str = f"{start} -- {end}" if start or end else ""
-            if end and end.lower() == 'present': dates_str = f"{start} -- Present"
-            elif not end and start : dates_str = start
-        elif isinstance(date_val, str): dates_str = fix_latex_special_chars(date_val)
+            if end and end.lower() == 'present': 
+                dates_str = f"{start} -- Present"
+            elif not end and start: 
+                dates_str = start
+        elif isinstance(date_val, str): # If it's a string, use it directly
+            dates_str = fix_latex_special_chars(date_val)
+        # If date_val is None or some other type, dates_str remains ""
+            
         content_lines.extend([
             r"    \resumeSubheading",
             f"      {{{position}}}{{{dates_str}}}",
@@ -381,12 +459,20 @@ def _generate_misc_leadership_section(misc_data: Optional[Dict[str, Any]]) -> Op
     for event_name, details in leadership_data.items():
         name = fix_latex_special_chars(event_name)
         if not name: continue
-        dates_dict = details.get("dates", {})
-        start_date = fix_latex_special_chars(dates_dict.get("start_date"))
-        end_date = fix_latex_special_chars(dates_dict.get("end_date"))
-        dates_str = f"{start_date} -- {end_date}" if start_date or end_date else ""
-        if end_date and end_date.lower() == 'present': dates_str = f"{start_date} -- Present"
-        elif not end_date and start_date: dates_str = start_date
+            
+        dates_val = details.get("dates") # Get raw dates value
+        dates_str = ""
+        if isinstance(dates_val, dict): # If it's a dictionary, process start/end
+            start_date = fix_latex_special_chars(dates_val.get("start_date"))
+            end_date = fix_latex_special_chars(dates_val.get("end_date"))
+            dates_str = f"{start_date} -- {end_date}" if start_date or end_date else ""
+            if end_date and end_date.lower() == 'present': 
+                dates_str = f"{start_date} -- Present"
+            elif not end_date and start_date: 
+                dates_str = start_date
+        elif isinstance(dates_val, str): # If it's a string, use it directly
+            dates_str = fix_latex_special_chars(dates_val)
+        # If dates_val is None or some other type, dates_str remains ""
         
         # Use the new single-line subheading command
         content_lines.append(fr"    \resumeSubheadingSingleLine{{{name}}}{{{dates_str}}}")
@@ -414,6 +500,11 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
         A string containing the complete LaTeX document.
     """
     
+    # Initialize OpenAI client and attempt to extract highlights
+    # This should ideally be called once.
+    # _initialize_openai_client() # Called by extract_highlights_from_resume
+    tech_skills, metrics = extract_highlights_from_resume(data)
+
     # Determine page height for LaTeX geometry package
     page_height_setting_tex = ""
     text_height_adjustment = ""
@@ -439,118 +530,91 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
     else:  # Default adjustments if page_height is None
         text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}" # Double backslashes
 
-    # LaTeX Preamble (derived from the provided sample .tex)
-    preamble = r"""
-\documentclass[letterpaper,11pt]{article}
+    # LaTeX Preamble
+    preamble_parts = [
+        r"\documentclass[letterpaper,11pt]{article}",
+        r"\usepackage[T1]{fontenc}",
+        r"\usepackage{latexsym}",
+        r"\usepackage[empty]{fullpage}", 
+        r"\usepackage{titlesec}",
+        r"\usepackage{marvosym}",
+        r"\usepackage[usenames,dvipsnames]{color}",
+        r"\usepackage{verbatim}",
+        r"\usepackage{enumitem}",
+        r"\usepackage[hidelinks]{hyperref}",
+        r"\usepackage{fancyhdr}",
+        r"\usepackage[english]{babel}",
+        r"\usepackage{tabularx}",
+        r"\usepackage{amsfonts}",
+        r"\usepackage{textcomp}",
+        r"\pagestyle{fancy}",
+        # Moved from extend block to be with other direct settings if they were there
+        # Ensuring these are definitely present now:
+        r"\fancyhf{}", 
+        r"\fancyfoot{}",
+        r"\renewcommand{\headrulewidth}{0pt}",
+        r"\renewcommand{\footrulewidth}{0pt}",
+    ]
 
-\usepackage{latexsym}
-\usepackage[empty]{fullpage} % This sets margins to be minimal. Might conflict with explicit page height.
-\usepackage{titlesec}
-\usepackage{marvosym}
-\usepackage[usenames,dvipsnames]{color}
-\usepackage{verbatim}
-\usepackage{enumitem}
-\usepackage[hidelinks]{hyperref}
-\usepackage{fancyhdr}
-\usepackage[english]{babel}
-\usepackage{tabularx}
-\usepackage{amsfonts} % For \Huge, \scshape etc. sometimes needs amsfonts or similar
-% \input{glyphtounicode} % Assuming this is available if needed for specific glyphs.
-% \pdfgentounicode=1     % Ensured in custom commands section in sample, good to have.
+    # Static margin adjustments that were previously part of the large preamble string
+    preamble_parts.extend([
+        r"\addtolength{\oddsidemargin}{-0.5in}",
+        r"\addtolength{\evensidemargin}{-0.5in}",
+        r"\addtolength{\textwidth}{1in}",
+        r"\addtolength{\topmargin}{-.5in}",
+    ])
+    
+    # Append the dynamic text height adjustment (this was correctly placed)
+    preamble_parts.append(text_height_adjustment)
 
-%----------FONT OPTIONS----------
-% sans-serif
-% \usepackage[sfdefault]{FiraSans}
-% \usepackage[sfdefault]{roboto}
-% \usepackage[sfdefault]{noto-sans}
-% \usepackage[default]{sourcesanspro}
+    # Continue with the rest of the preamble commands
+    preamble_parts.extend([
+        r"\urlstyle{same}",
+        r"\raggedbottom",
+        r"\raggedright",
+        r"\setlength{\tabcolsep}{0in}",
+        # Using the multi-line representation for titleformat for clarity, though 
+        # the single line with \n should also work in Python source.
+        # This matches the older structure more closely.
+        r"\titleformat{\section}{",
+        r"  \vspace{-4pt}\scshape\raggedright\large",
+        r"}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]",
+        r"\pdfgentounicode=1",
+        r"\newcommand{\resumeItem}[1]{\item{\small #1} \vspace{-2pt}}",
+        r"\newcommand{\resumeSubheading}[4]{",
+        r"  \vspace{-2pt}\item",
+        r"    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}",
+        r"      \textbf{#1} & #2 \\",
+        r"      \textit{\small#3} & \textit{\small #4} \\",
+        r"    \end{tabular*}\vspace{-7pt}",
+        r"}",
+        r"\newcommand{\resumeSubSubheading}[2]{",
+        r"    \item",
+        r"    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}",
+        r"      \textit{\small#1} & \textit{\small #2} \\",
+        r"    \end{tabular*}\vspace{-7pt}",
+        r"}",
+        r"\newcommand{\resumeProjectHeading}[2]{",
+        r"    \item",
+        r"    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}",
+        r"      \small#1 & #2 \\",
+        r"    \end{tabular*}\vspace{-7pt}",
+        r"}",
+        r"\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}",
+        r"\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}",
+        r"\newcommand{\resumeSubheadingSingleLine}[2]{",
+        r"  \vspace{-2pt}\item",
+        r"    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}",
+        r"      \textbf{#1} & #2 \\",
+        r"    \end{tabular*}\vspace{-7pt}",
+        r"}",
+        r"\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}",
+        r"\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}", 
+        r"\newcommand{\resumeItemListStart}{\begin{itemize}\sloppy}", # Restored \sloppy
+        r"\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}"
+    ])
 
-% serif
-% \usepackage{CormorantGaramond}
-% \usepackage{charter}
-
-\pagestyle{fancy}
-\fancyhf{} % clear all header and footer fields
-\fancyfoot{}
-\renewcommand{\headrulewidth}{0pt}
-\renewcommand{\footrulewidth}{0pt}
-
-% Adjust margins (from sample)
-% These might need to be re-evaluated if we are setting explicit page height.
-% fullpage already makes margins small. These are further adjustments.
-\addtolength{\oddsidemargin}{-0.5in}
-\addtolength{\evensidemargin}{-0.5in}
-\addtolength{\textwidth}{1in}
-\addtolength{\topmargin}{-.5in}
-"""
-
-    # Append the dynamic text height adjustment
-    preamble += text_height_adjustment
-
-    # Continue with the rest of the preamble
-    preamble += r"""
-
-\urlstyle{same}
-
-\raggedbottom
-\raggedright
-\setlength{\tabcolsep}{0in}
-
-% Sections formatting (from sample)
-\titleformat{\section}{
-  \vspace{-4pt}\scshape\raggedright\large
-}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
-
-% Ensure that generated pdf is machine readable/ATS parsable
-\pdfgentounicode=1
-
-%-------------------------
-% Custom commands (from sample)
-\newcommand{\resumeItem}[1]{
-  \item\small{
-    {#1 \vspace{-2pt}}
-  }
-}
-
-\newcommand{\resumeSubheading}[4]{
-  \vspace{-2pt}\item
-    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
-      \textbf{#1} & #2 \\
-      \textit{\small#3} & \textit{\small #4} \\
-    \end{tabular*}\vspace{-7pt}
-}
-
-\newcommand{\resumeSubSubheading}[2]{
-    \item
-    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
-      \textit{\small#1} & \textit{\small #2} \\
-    \end{tabular*}\vspace{-7pt}
-}
-
-\newcommand{\resumeProjectHeading}[2]{
-    \item
-    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
-      \small#1 & #2 \\
-    \end{tabular*}\vspace{-7pt}
-}
-
-\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
-
-\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
-
-% New command for single line subheading
-\newcommand{\resumeSubheadingSingleLine}[2]{
-  \vspace{-2pt}\item
-    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
-      \textbf{#1} & #2 \\
-    \end{tabular*}\vspace{-7pt}
-}
-
-\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
-\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
-\newcommand{\resumeItemListStart}{\begin{itemize}}
-\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
-"""
+    preamble = "\n".join(preamble_parts) # This line correctly joins all parts
 
     # Document body start
     # Apply page height setting if provided. This should be early in the document.
@@ -608,10 +672,10 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
     education_tex = _generate_education_section(education_data)
     section_processing_log.append(f"Education section: {'Included' if education_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
 
-    experience_tex = _generate_experience_section(experience_data)
+    experience_tex = _generate_experience_section(experience_data, tech_skills, metrics)
     section_processing_log.append(f"Experience section: {'Included' if experience_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
 
-    projects_tex = _generate_projects_section(projects_data)
+    projects_tex = _generate_projects_section(projects_data, tech_skills, metrics)
     section_processing_log.append(f"Projects section: {'Included' if projects_tex else 'Skipped (no data or empty)'}") # Fixed: added ')
 
     skills_tex = _generate_skills_section(skills_data)
@@ -663,6 +727,252 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
     full_latex_doc = "\n".join(filter(None, content_parts))
     
     return full_latex_doc
+
+def extract_highlights_from_resume(resume_data: Dict[str, Any]) -> tuple[List[str], List[str]]:
+    """
+    Extracts technical skills and metrics from resume bullet points using OpenAI API.
+
+    Args:
+        resume_data: The parsed resume JSON data.
+
+    Returns:
+        A tuple containing two lists: (technical_skills, metrics).
+        Returns ([], []) if highlighting is skipped or an error occurs.
+    """
+    if not _initialize_openai_client() or not OPENAI_CLIENT:
+        return [], []
+
+    all_bullet_points: List[str] = []
+
+    # Extract from Experience section
+    experience_data = resume_data.get("Experience") or resume_data.get("work_experience")
+    if isinstance(experience_data, list):
+        for exp_item in experience_data:
+            if isinstance(exp_item, dict):
+                responsibilities = exp_item.get("responsibilities") or exp_item.get("responsibilities/achievements")
+                if isinstance(responsibilities, list):
+                    for resp in responsibilities:
+                        if isinstance(resp, str) and resp.strip():
+                            all_bullet_points.append(resp.strip())
+                elif isinstance(responsibilities, str) and responsibilities.strip():
+                    all_bullet_points.append(responsibilities.strip())
+
+    # Extract from Projects section
+    projects_data = resume_data.get("Projects") or resume_data.get("projects")
+    if isinstance(projects_data, list):
+        for proj_item in projects_data:
+            if isinstance(proj_item, dict):
+                description = proj_item.get("description")
+                if isinstance(description, list):
+                    for desc_item in description:
+                        if isinstance(desc_item, str) and desc_item.strip():
+                            all_bullet_points.append(desc_item.strip())
+                elif isinstance(description, str) and description.strip():
+                    all_bullet_points.append(description.strip())
+    
+    if not all_bullet_points:
+        print("AI HINT: No bullet points found in Experience/Projects for highlighting.")
+        return [], []
+
+    # Create cache key
+    # Sort bullets to ensure consistent hash for the same content regardless of order in JSON
+    cache_key_string = "|".join(sorted(all_bullet_points))
+    cache_key = hashlib.md5(cache_key_string.encode('utf-8')).hexdigest()
+
+    if cache_key in API_CACHE:
+        print(f"AI HINT: Using cached OpenAI response for key {cache_key[:8]}...")
+        cached_data = API_CACHE[cache_key]
+        return cached_data.get("technical_skills", []), cached_data.get("metrics", [])
+
+    prompt = f"""
+You are a specialized resume parser focusing on identifying two distinct categories from resume bullet points:
+
+1. TECHNICAL_SKILLS: Hard technical skills, tools, technologies, programming languages, methodologies, frameworks, platforms, systems, and specialized knowledge domains. Include only specific, concrete technical terms.
+
+2. METRICS: Quantitative achievements, percentages, numerical impacts, monetary values, time savings, efficiency improvements, and other quantifiable results. Include the full metric phrase (e.g., "increased efficiency by 40%", "$1.2M in savings", "reduced processing time by 20 hours").
+
+Analyze the following resume bullet points and return ONLY a JSON object with two arrays:
+{{
+  "technical_skills": ["skill1", "skill2", ...],
+  "metrics": ["metric phrase 1", "metric phrase 2", ...]
+}}
+
+TECHNICAL_SKILLS should be individual terms (e.g., "Python", "SQL", "TensorFlow"), while METRICS should be complete achievement phrases.
+
+DO NOT include soft skills, generic business terms, or non-technical concepts in the technical_skills list.
+ONLY include phrases with specific numerical values or percentages in the metrics list.
+
+Resume bullet points:
+{json.dumps(all_bullet_points, indent=2)}
+"""
+    
+    print(f"AI HINT: Calling OpenAI API for {len(all_bullet_points)} bullet points...")
+    try:
+        response = OPENAI_CLIENT.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1, # Low temperature for factual extraction
+            response_format={"type": "json_object"} # Ensure JSON output if model supports
+        )
+        
+        content = response.choices[0].message.content
+        if content is None:
+            print("AI HINT: OpenAI API returned empty content. Skipping highlighting.")
+            return [], []
+            
+        parsed_json = json.loads(content)
+        
+        tech_skills = parsed_json.get("technical_skills", [])
+        metrics = parsed_json.get("metrics", [])
+        
+        if not isinstance(tech_skills, list) or not all(isinstance(s, str) for s in tech_skills):
+            print("AI HINT: 'technical_skills' from OpenAI is not a list of strings. Skipping.")
+            tech_skills = [] # Default to empty if format is wrong
+        if not isinstance(metrics, list) or not all(isinstance(m, str) for m in metrics):
+            print("AI HINT: 'metrics' from OpenAI is not a list of strings. Skipping.")
+            metrics = [] # Default to empty if format is wrong
+
+        API_CACHE[cache_key] = {"technical_skills": tech_skills, "metrics": metrics}
+        print(f"AI HINT: OpenAI call successful. Found {len(tech_skills)} skills, {len(metrics)} metrics.")
+        return tech_skills, metrics
+
+    except openai.APIError as e:
+        print(f"AI HINT: OpenAI API Error: {e}. Skipping highlighting.")
+    except json.JSONDecodeError as e:
+        print(f"AI HINT: Error decoding JSON response from OpenAI: {e}. Response: {content[:500]}... Skipping highlighting.")
+    except Exception as e:
+        print(f"AI HINT: An unexpected error occurred during OpenAI call: {e}. Skipping highlighting.")
+    
+    return [], []
+
+def _format_text_segment(text_segment_raw: str, all_identified_skills: List[str]) -> str:
+    """
+    Formats a raw text segment by bolding specified skills within it and escaping all text for LaTeX.
+    Args:
+        text_segment_raw: The raw text string (e.g., a metric phrase or a part of a bullet).
+        all_identified_skills: A list of all unique skill strings identified by OpenAI.
+    Returns:
+        A LaTeX-ready string with specified skills bolded and all parts correctly escaped.
+    """
+    parts = []
+    current_pos = 0
+
+    # Find all occurrences of skills to bold within this specific segment
+    # Order skills by length (descending) to handle cases like "Python" vs "Python 3" if both were skills.
+    skill_highlights_in_segment = []
+    for skill in sorted(all_identified_skills, key=len, reverse=True):
+        for match in re.finditer(re.escape(skill), text_segment_raw):
+            # Ensure this skill doesn't overlap with an already found longer skill match
+            # This basic check helps but true non-overlapping requires more complex logic if skills can overlap
+            # For now, assuming skills identified by OpenAI are distinct enough or longest match rule is sufficient.
+            is_sub_match_of_existing = False
+            for sh in skill_highlights_in_segment:
+                if match.start() >= sh['start'] and match.end() <= sh['end'] and (match.start() != sh['start'] or match.end() != sh['end']):
+                    is_sub_match_of_existing = True
+                    break
+            if not is_sub_match_of_existing:
+                 # Remove any existing highlights that are sub-matches of the current one
+                skill_highlights_in_segment = [sh for sh in skill_highlights_in_segment 
+                                               if not (sh['start'] >= match.start() and sh['end'] <= match.end() and 
+                                                       (sh['start'] != match.start() or sh['end'] != match.end()))]
+                skill_highlights_in_segment.append({'start': match.start(), 'end': match.end(), 'text': skill})
+    
+    # Sort by start position to reconstruct the string
+    skill_highlights_in_segment.sort(key=lambda x: x['start'])
+    
+    # Filter out overlapping skill highlights, keeping the one that appeared first (implicitly longest due to sort order above)
+    final_skill_highlights = []
+    last_highlight_end = -1
+    for hl in skill_highlights_in_segment:
+        if hl['start'] >= last_highlight_end:
+            final_skill_highlights.append(hl)
+            last_highlight_end = hl['end']
+
+    last_processed_end = 0
+    for hl in final_skill_highlights:
+        if hl['start'] > last_processed_end:
+            parts.append(fix_latex_special_chars(text_segment_raw[last_processed_end:hl['start']]))
+        parts.append(f"\\textbf{{{fix_latex_special_chars(hl['text'])}}}")
+        last_processed_end = hl['end']
+    
+    if last_processed_end < len(text_segment_raw):
+        parts.append(fix_latex_special_chars(text_segment_raw[last_processed_end:]))
+        
+    return "".join(parts)
+
+def format_bullet_with_highlights(bullet_text_raw: str, all_skills: List[str], all_metrics: List[str]) -> str:
+    """
+    Formats a raw bullet point string by applying bold to skills and italics to metrics.
+    Skills within metrics are also bolded.
+    Args:
+        bullet_text_raw: The raw text of the bullet point.
+        all_skills: A list of all unique skill strings identified by OpenAI.
+        all_metrics: A list of all unique metric strings identified by OpenAI.
+    Returns:
+        A LaTeX-formatted string for the bullet point.
+    """
+    if not bullet_text_raw.strip():
+        return "" # Should not happen if bullets are pre-stripped
+
+    # Identify all top-level highlight segments (metrics and skills not inside other captured metrics)
+    # Each element: {'start': int, 'end': int, 'text': str_raw, 'type': 'metric'|'skill'}
+    highlights = []
+    
+    # 1. Find all metric occurrences
+    for metric_raw in sorted(all_metrics, key=len, reverse=True): # Longest first
+        for match in re.finditer(re.escape(metric_raw), bullet_text_raw):
+            highlights.append({'start': match.start(), 'end': match.end(), 'text': metric_raw, 'type': 'metric'})
+            
+    # 2. Find all skill occurrences
+    for skill_raw in sorted(all_skills, key=len, reverse=True): # Longest first
+        for match in re.finditer(re.escape(skill_raw), bullet_text_raw):
+            highlights.append({'start': match.start(), 'end': match.end(), 'text': skill_raw, 'type': 'skill'})
+            
+    # Sort all found highlights: by start index, then by length (longest first), then by type (metric preferred over skill for exact same span)
+    highlights.sort(key=lambda x: (x['start'], -(x['end'] - x['start']), 0 if x['type'] == 'metric' else 1))
+    
+    # Filter for a set of non-overlapping highlights. Longest, then metric-preferred, takes precedence.
+    final_non_overlapping_highlights = []
+    covered_indices = [False] * len(bullet_text_raw)
+    
+    for hl in highlights:
+        # Check if any part of this highlight is already covered by a previously selected one
+        if not any(covered_indices[i] for i in range(hl['start'], hl['end'])):
+            final_non_overlapping_highlights.append(hl)
+            for i in range(hl['start'], hl['end']): # Mark this region as covered
+                covered_indices[i] = True
+                
+    # Sort the chosen highlights by start position for sequential processing
+    final_non_overlapping_highlights.sort(key=lambda x: x['start'])
+    
+    # Build the final string
+    result_parts = []
+    current_pos = 0
+    for hl_to_apply in final_non_overlapping_highlights:
+        # Append text before this highlight
+        if hl_to_apply['start'] > current_pos:
+            result_parts.append(fix_latex_special_chars(bullet_text_raw[current_pos:hl_to_apply['start']]))
+        
+        # Process and append the highlight itself
+        if hl_to_apply['type'] == 'metric':
+            # The metric text (hl_to_apply['text']) needs skills within it bolded
+            # all_skills contains all skills identified from the entire resume batch
+            metric_content_with_bolded_skills = _format_text_segment(hl_to_apply['text'], all_skills)
+            result_parts.append(f"\\textit{{{metric_content_with_bolded_skills}}}")
+        elif hl_to_apply['type'] == 'skill':
+            # This is a skill that was not part of any chosen metric
+            # Its text itself just needs to be escaped and bolded
+            result_parts.append(f"\\textbf{{{fix_latex_special_chars(hl_to_apply['text'])}}}")
+            
+        current_pos = hl_to_apply['end']
+        
+    # Append any remaining text after the last highlight
+    if current_pos < len(bullet_text_raw):
+        result_parts.append(fix_latex_special_chars(bullet_text_raw[current_pos:]))
+        
+    return "".join(result_parts)
+
+# Functions for formatting will go here next (_format_text_segment, format_bullet_with_highlights)
 
 # --- Minimal test for the template if run directly (not typical use) ---
 if __name__ == '__main__':
