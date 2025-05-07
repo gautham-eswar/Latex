@@ -1,0 +1,169 @@
+
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage} % This sets margins to be minimal. Might conflict with explicit page height.
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{amsfonts} % For \Huge, \scshape etc. sometimes needs amsfonts or similar
+% \input{glyphtounicode} % Assuming this is available if needed for specific glyphs.
+% \pdfgentounicode=1     % Ensured in custom commands section in sample, good to have.
+
+%----------FONT OPTIONS----------
+% sans-serif
+% \usepackage[sfdefault]{FiraSans}
+% \usepackage[sfdefault]{roboto}
+% \usepackage[sfdefault]{noto-sans}
+% \usepackage[default]{sourcesanspro}
+
+% serif
+% \usepackage{CormorantGaramond}
+% \usepackage{charter}
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins (from sample)
+% These might need to be re-evaluated if we are setting explicit page height.
+% fullpage already makes margins small. These are further adjustments.
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting (from sample)
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+% Ensure that generated pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------
+% Custom commands (from sample)
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small#1} & \textit{\small #2} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+\begin{document}
+\setlength{\pdfpageheight}{11.00in}
+
+\begin{center}
+    \textbf{\Huge \scshape Ruo-Yi Evelyn Liang} \\ \vspace{1pt}
+    \small (510) 282-2716 $|$ \href{mailto:ruoyi_liang@berkeley.edu}{\underline{ruoyi\_liang@berkeley.edu}}
+    \small Berkeley, CA
+\end{center}
+
+\section*{Summary} % Using section* for unnumbered
+  Data Science Meets Product Strategy—Turning Analytics into Action
+
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {University of California, Berkeley}{Berkeley, CA}
+      {Master of Analytics, IEOR, College of Engineering}{Aug 2025 -- Present}
+    esumeSubSubheading{GPA: 3.7/4.0}{}
+      \resumeItemListStart
+        esumeItem{Courses: Machine Learning, Optimization, Design of Databases, Risk Modeling, Transportation/Supply Chain and Logistics Management}
+      \resumeItemListEnd
+    \resumeSubheading
+      {National Taiwan University (NTU)}{Taipei, Taiwan}
+      {Bachelor of Business Administration in Technology Management}{June 2024}
+    esumeSubSubheading{GPA: 3.8/4.0}{}
+      \resumeItemListStart
+        esumeItem{Courses: Data Analysis and Machine Learning with Python, Manufacturing Data Science, Marketing Analytics, Human Computer Interaction and User Studies, Project Management}
+      \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+\section{Experience}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Data Analysis Intern (Product Team)}{June 2023 -- Dec 2023}
+      {Shopee Pte. Ltd.}{Taipei, Taiwan}
+      \resumeItemListStart
+        esumeItem{Monitored operational performance in delivery channel and saved 5\% costs by creating 10+ dashboards and reports using TrinoSQL from an 8 million+ transaction dataset}
+        esumeItem{Increased 2\% in monthly sales through A/B testing on page design using the CVR metric and applied statistical analysis}
+        esumeItem{Conducted data-driven and interview-based analyses for business and product recommendations, collaborating cross-functionally with stakeholders across 4 departments}
+        esumeItem{Developed an RNN-based machine learning model, automating employee classification and saving 20+ hours of workload weekly}
+      \resumeItemListEnd
+    \resumeSubheading
+      {Research Assistant}{Dec 2022 -- July 2023}
+      {Human-Computer Interaction Lab in National Taiwan University}{Taipei, Taiwan}
+      \resumeItemListStart
+        esumeItem{Conducted Text-Based Sentiment Analysis by transforming qualitative insights from unstructured data into quantitative data}
+        esumeItem{Analyse the correlation between Autism Spectrum Condition and algorithmic bias using Lavaan in R}
+        esumeItem{Co-authored a thesis on data credibility and correlation, presented findings in academic discussions}
+      \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+\\section{Projects}\n    \\resumeSubHeadingListStart\n      \\resumeProjectHeading\n          {\\textbf{Capstone - 2nd Prize in Google Case Competition: Dynamic Staffing Optimization}}{}\n          \\resumeItemListStart\n            \\resumeItem{Achieved a 16\% profit boost by engineering a linear programming optimization model that dynamically adjusted agent staffing in real-time}\n          \\resumeItemListEnd\n      \\resumeProjectHeading\n          {\\textbf{Predictive Modeling for Aviation Maintenance Optimization} $|$ \\emph{EDA, SelectKBest, PCA, Random Forest, XGBoost}}{}\n          \\resumeItemListStart\n            \\resumeItem{Processed and analyzed 22 million records, narrowing down to 330,000 samples, to develop a predictive model optimizing aviation maintenance, reducing costs, preventing failures, and enhancing safety}\n          \\resumeItemListEnd\n      \\resumeProjectHeading\n          {\\textbf{Public Bicycle Usage Analysis and Machine Learning Prediction} $|$ \\emph{Gradient Boosting Regressor, time series analysis, BeautifulSoup, Pandas, PowerBI, Excel}}{}\n          \\resumeItemListStart\n            \\resumeItem{Developed an ML model (Gradient Boosting Regressor) with 85\% R-squared accuracy to predict bicycle availability at stations using time series analysis}\n          \\resumeItemListEnd\n    \\resumeSubHeadingListEnd\n
+\section{Technical Skills}
+ \\begin{itemize}[leftmargin=0.15in, label={}]
+    \\small{\\item{
+     \\textbf{Data Analysis}{: NumPy, SciPy, TensorFlow, PyTorch, Pandas, Matplotlib, BeautifulSoup} \\\\      \\textbf{Database}{: MySQL, Trino SQL, MongoDB} \\\\      \\textbf{Programming languages}{: Python, C/C++, SQL, R, C\#} \\\\      \\textbf{Tools}{: Tableau, PowerBI, Github, Spark, AWS, Microsoft Office, MATLAB}
+    }}
+ \\end{itemize}
+
+\section{Leadership \& Activities}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {	extbf{Event General Coordinator of Graduates' Catered Banquet}}{Apr 2023 -- May 2023}
+      {}{}
+      \resumeItemListStart
+        esumeItem{Led a team of 100+ across 7 departments for events (dance, singing, keynote speech, etc.) catering to 3,000+ students at Royal Palm Blvd}
+        esumeItem{Coordinated with 12 sponsors including Hua Nan Commercial Bank, Hotai Motor Co, BABI International Corp.}
+      \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+
+\end{document}
