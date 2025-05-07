@@ -479,17 +479,24 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
     
     if page_height is not None:
         # Set the page height and calculate appropriate text height
-        page_height_setting_tex = f"\\setlength{{\\pdfpageheight}}{{{page_height:.2f}in}}"
+        # Ensure backslashes are properly escaped for LaTeX commands in f-strings
+        page_height_setting_tex = f"\\setlength{{\\pdfpageheight}}{{{page_height:.2f}in}}" # Double backslashes
         
-        # Adjust text height proportionally to page height
-        # For page heights > 11 inches, increase the text area even more aggressively
-        if page_height > 11.0:
-            text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.5in}}"
-        else:
-            text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}"
-    else:
-        # Default adjustments
-        text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}"
+        # Adjust text height proportionally to page height with more granular tiers
+        if page_height > 15.0:  # 15-16 inches
+            text_height_adjustment = f"\\addtolength{{\\textheight}}{{5.0in}}" # Double backslashes
+        elif page_height > 14.0:  # 14-15 inches
+            text_height_adjustment = f"\\addtolength{{\\textheight}}{{4.5in}}" # Double backslashes
+        elif page_height > 13.0:  # 13-14 inches
+            text_height_adjustment = f"\\addtolength{{\\textheight}}{{4.0in}}" # Double backslashes
+        elif page_height > 12.0:  # 12-13 inches
+            text_height_adjustment = f"\\addtolength{{\\textheight}}{{3.0in}}" # Double backslashes
+        elif page_height > 11.0:  # 11-12 inches
+            text_height_adjustment = f"\\addtolength{{\\textheight}}{{2.0in}}" # Double backslashes
+        else:  # Up to 11 inches
+            text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}" # Double backslashes
+    else:  # Default adjustments if page_height is None
+        text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}" # Double backslashes
 
     # LaTeX Preamble (derived from the provided sample .tex)
     preamble = r"""
