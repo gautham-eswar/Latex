@@ -83,15 +83,13 @@ def _generate_header_section(personal_info: Optional[Dict[str, Any]]) -> Optiona
              website_url = f"http://{website_url}"
         contact_parts.append(f"\\href{{{website_url}}}{{{website_display}}}")
 
+    # Add location to contact_parts if it exists
+    if location:
+        contact_parts.append(location)
+
     if contact_parts:
         lines.append(f"    \\small {' $|$ '.join(contact_parts)}")
     
-    if location and not name: # If only location is there, might look odd with just center
-         lines.append(f"    \\small {location}")
-    elif location and name: # Add location if name is also present
-        lines.append(f"    \\small {location}")
-
-
     if name: # Only add end{center} if we started it
         lines.append(r"\end{center}")
         lines.append("") # Add a newline for spacing
