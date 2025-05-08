@@ -411,7 +411,7 @@ def main():
                     # Need to increase page height and try again
                     if attempts_remaining > 1:  # Still have more attempts
                         print(f"Content currently spans {page_count} pages. Increasing page height...")
-                        current_page_height += PAGE_HEIGHT_INCREMENT_INCHES
+                        current_page_height += 0.5 # New increment
                         print(f"New page height: {current_page_height:.2f} inches")
                         attempts_remaining -= 1
                     else:
