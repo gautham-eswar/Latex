@@ -161,27 +161,27 @@ def get_pdf_page_count(pdf_path):
     except Exception as e:
         print(f"Unexpected error running pdfinfo: {e}")
     
-    # Method 2: Use grep to search for "Page" in the LaTeX log file
+    # Method 2: Use a simpler string search in the log file
     log_file = pdf_path.replace('.pdf', '.log')
     if os.path.exists(log_file):
         try:
             with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
                 log_content = f.read()
-                # Look for patterns like "Output written on filename.pdf (2 pages"
-                match = re.search(r'Output written on .+?\.pdf \((\d+) pages', log_content)
-                if match:
-                    page_count = int(match.group(1))
-                    print(f"Found page count in log file: {page_count} page(s)")
-                    return page_count
-                
-                # Alternative pattern search
-                if "Overfull \hbox" in log_content and "Float too large" in log_content:
-                    print("Warning: Log file indicates content overflow issues")
-                
+                # Simple check for the single-page output indicator
+                if "(1 page" in log_content:
+                    print("Found '(1 page' in log file. Assuming 1 page.")
+                    return 1
+                else:
+                    # If "(1 page" isn't found, assume > 1 page for auto-sizing purposes
+                    # We could try parsing for "(N pages" here too, but let's keep it simple
+                    # and rely on the fallback for the multi-page case detection if necessary.
+                    print("Did not find '(1 page' pattern in log file. Assuming > 1 page or using fallback.")
+                    # Let the logic proceed to the fallback (Method 3)
+
         except Exception as e:
-            print(f"Error reading log file: {e}")
-    
-    # Method 3: Fallback - just check if the file exists and parse filename for clues
+            print(f"Error reading log file for simple check: {e}")
+
+    # Method 3: Fallback - based on file size
     if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
         print(f"PDF file exists with size: {os.path.getsize(pdf_path)} bytes")
         # If file is larger than typical 1-page resume, assume it's multi-page

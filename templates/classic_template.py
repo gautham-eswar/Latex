@@ -514,21 +514,15 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
         # Ensure backslashes are properly escaped for LaTeX commands in f-strings
         page_height_setting_tex = f"\\setlength{{\\pdfpageheight}}{{{page_height:.2f}in}}" # Double backslashes
         
-        # Adjust text height proportionally to page height with more granular tiers
-        if page_height > 15.0:  # 15-16 inches
-            text_height_adjustment = f"\\addtolength{{\\textheight}}{{5.0in}}" # Double backslashes
-        elif page_height > 14.0:  # 14-15 inches
-            text_height_adjustment = f"\\addtolength{{\\textheight}}{{4.5in}}" # Double backslashes
-        elif page_height > 13.0:  # 13-14 inches
-            text_height_adjustment = f"\\addtolength{{\\textheight}}{{4.0in}}" # Double backslashes
-        elif page_height > 12.0:  # 12-13 inches
-            text_height_adjustment = f"\\addtolength{{\\textheight}}{{3.0in}}" # Double backslashes
-        elif page_height > 11.0:  # 11-12 inches
-            text_height_adjustment = f"\\addtolength{{\\textheight}}{{2.0in}}" # Double backslashes
-        else:  # Up to 11 inches
-            text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}" # Double backslashes
-    else:  # Default adjustments if page_height is None
-        text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}" # Double backslashes
+        # Restore dynamic text height adjustment
+        if page_height > 15.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{5.0in}}"
+        elif page_height > 14.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{4.5in}}"
+        elif page_height > 13.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{4.0in}}"
+        elif page_height > 12.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{3.0in}}"
+        elif page_height > 11.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{2.0in}}"
+        else: text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}"
+    else: 
+        text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}"
 
     # LaTeX Preamble
     preamble_parts = [
@@ -558,13 +552,27 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
 
     # Static margin adjustments that were previously part of the large preamble string
     preamble_parts.extend([
-        r"\addtolength{\oddsidemargin}{-0.5in}",
-        r"\addtolength{\evensidemargin}{-0.5in}",
-        r"\addtolength{\textwidth}{1in}",
-        r"\addtolength{\topmargin}{-.5in}",
+        r"\addtolength{\oddsidemargin}{-0.5in}", # Reverted
+        r"\addtolength{\evensidemargin}{-0.5in}", # Reverted
+        r"\addtolength{\textwidth}{1in}", # Reverted
+        r"\addtolength{\topmargin}{-.5in}", # Reverted
+        # r"% User settings for margins/height", # Removed user comment
+        # r"\addtolength{{\oddsidemargin}}{{-0.6in}}", # Removed user setting
+        # r"\addtolength{{\evensidemargin}}{{-0.6in}}", # Removed user setting
+        # r"\addtolength{{\textwidth}}{{1.2in}}", # Removed user setting
+        # r"\addtolength{{\topmargin}}{{-0.7in}}", # Removed user setting
     ])
     
-    # Append the dynamic text height adjustment (this was correctly placed)
+    # Restore dynamic text height adjustment
+    if page_height is not None:
+        if page_height > 15.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{5.0in}}"
+        elif page_height > 14.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{4.5in}}"
+        elif page_height > 13.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{4.0in}}"
+        elif page_height > 12.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{3.0in}}"
+        elif page_height > 11.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{2.0in}}"
+        else: text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}"
+    else: 
+        text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}"
     preamble_parts.append(text_height_adjustment)
 
     # Continue with the rest of the preamble commands
