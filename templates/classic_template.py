@@ -774,23 +774,25 @@ You are a specialized resume parser focusing on identifying two distinct categor
    - Avoid extracting single letters or very short, ambiguous fragments unless they are well-known acronyms or specific language names (e.g., extract "R" if it refers to the language, but not just "R" from "R-squared").
    - Focus on terms that represent a distinct skill or technology.
 
-2. METRICS: Phrases indicating specific, quantifiable results or achievements. **Crucially, these phrases MUST contain explicit numerical values (e.g., 10, 42, 1.5M) or percentages (e.g., 25%, 10-15%)**. Include the complete phrase associated with the number/percentage (e.g., "saved $50k annually", "achieved 95% accuracy", "reduced latency by 30ms", "managed a team of 15").
+2. METRICS: Extract **only the specific numerical value or percentage token** representing a quantifiable result. Include immediately adjacent standard units or symbols where they are part of the token (e.g., $, %, M, k, ms, x).
+   - Examples of what to extract: "4M+", "95%", "$50k", "30ms", "10-15%", "2x", "16%"
+   - Examples of surrounding text **NOT** to extract: "increased by", "achieved", "saved", "reduced latency by", "managed a team of"
 
 **DO NOT include:**
+- Any words describing the metric achievement; extract ONLY the numerical token itself.
 - General statements of improvement without numbers (e.g., "improved efficiency", "streamlined processes").
 - Qualitative achievements (e.g., "received positive feedback").
-- Ranges without specific start/end numbers unless clearly quantifiable (e.g., prefer "increased sales by 10-15%" over "increased sales significantly").
 
 Analyze the following resume bullet points and return ONLY a JSON object with two arrays:
 {{
   "technical_skills": ["skill1", "skill2", ...],
-  "metrics": ["metric phrase 1", "metric phrase 2", ...]
+  "metrics": ["4M+", "95%", "$50k", ...]
 }}
 
-TECHNICAL_SKILLS should be individual terms (e.g., "Python", "SQL", "TensorFlow"), while METRICS should be complete achievement phrases.
+TECHNICAL_SKILLS should be individual terms (e.g., "Python", "SQL", "TensorFlow"), while METRICS should be **only the numerical tokens**.
 
 DO NOT include soft skills, generic business terms, or non-technical concepts in the technical_skills list.
-ONLY include phrases with specific numerical values or percentages in the metrics list.
+ONLY include **numerical tokens** in the metrics list.
 
 Resume bullet points:
 {json.dumps(all_bullet_points, indent=2)}
