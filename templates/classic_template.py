@@ -893,7 +893,7 @@ def _format_text_segment(text_segment_raw: str, all_identified_skills: List[str]
     for hl in final_skill_highlights:
         if hl['start'] > last_processed_end:
             parts.append(fix_latex_special_chars(text_segment_raw[last_processed_end:hl['start']]))
-        parts.append(f"\\textbf{{{fix_latex_special_chars(hl['text'])}}}")
+        parts.append(f"\\textbf{{\\textit{{{fix_latex_special_chars(hl['text'])}}}}}")
         last_processed_end = hl['end']
     
     if last_processed_end < len(text_segment_raw):
@@ -962,8 +962,8 @@ def format_bullet_with_highlights(bullet_text_raw: str, all_skills: List[str], a
             result_parts.append(f"\\textit{{{metric_content_with_bolded_skills}}}")
         elif hl_to_apply['type'] == 'skill':
             # This is a skill that was not part of any chosen metric
-            # Its text itself just needs to be escaped and bolded
-            result_parts.append(f"\\textbf{{{fix_latex_special_chars(hl_to_apply['text'])}}}")
+            # Its text itself just needs to be escaped and bolded/italicized
+            result_parts.append(f"\\textbf{{\\textit{{{fix_latex_special_chars(hl_to_apply['text'])}}}}}")
             
         current_pos = hl_to_apply['end']
         
