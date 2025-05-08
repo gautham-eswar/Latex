@@ -270,29 +270,10 @@ def _generate_projects_section(project_list: Optional[List[Dict[str, Any]]], ide
             elif not end and start: dates_str = start
         elif isinstance(dates_val, str): dates_str = fix_latex_special_chars(dates_val)
         
-        tech_used = proj.get("technologies") or proj.get("technologies_used")
+        # Define heading_title_part with only the title
         heading_title_part = f"\\textbf{{{title}}}"
-        if tech_used:
-            processed_tech = []
-            if isinstance(tech_used, list):
-                for t in tech_used:
-                    if isinstance(t, str) and t.strip():
-                        # Apply highlighting to individual tech stack items if they are also in 'identified_skills'
-                        # This is a simple direct check; more complex logic might be desired if tech_used items are phrases
-                        if t in identified_skills:
-                            processed_tech.append(format_bullet_with_highlights(t, identified_skills, identified_metrics))
-                        else:
-                            processed_tech.append(fix_latex_special_chars(t))
-            elif isinstance(tech_used, str) and tech_used.strip():
-                if tech_used in identified_skills:
-                     processed_tech.append(format_bullet_with_highlights(tech_used, identified_skills, identified_metrics))
-                else:
-                    processed_tech.append(fix_latex_special_chars(tech_used))
-            
-            if processed_tech:
-                 tech_str = ", ".join(processed_tech)
-                 if tech_str: heading_title_part += f" $|$ \\emph{{{tech_str}}}" # Emphasize tech stack
-            
+
+        # Use the heading_title_part (which now only contains the title)
         content_lines.append(r"      \resumeProjectHeading")
         content_lines.append(f"          {{{heading_title_part}}}{{{dates_str}}}")
         
@@ -789,8 +770,16 @@ def extract_highlights_from_resume(resume_data: Dict[str, Any]) -> tuple[List[st
 You are a specialized resume parser focusing on identifying two distinct categories from resume bullet points:
 
 1. TECHNICAL_SKILLS: Hard technical skills, tools, technologies, programming languages, methodologies, frameworks, platforms, systems, and specialized knowledge domains. Include only specific, concrete technical terms.
+   - Extract the **complete term**, including hyphens, capitalization, and symbols where relevant (e.g., "R-squared", "C++", "Node.js", "Scikit-learn").
+   - Avoid extracting single letters or very short, ambiguous fragments unless they are well-known acronyms or specific language names (e.g., extract "R" if it refers to the language, but not just "R" from "R-squared").
+   - Focus on terms that represent a distinct skill or technology.
 
-2. METRICS: Quantitative achievements, percentages, numerical impacts, monetary values, time savings, efficiency improvements, and other quantifiable results. Include the full metric phrase (e.g., "increased efficiency by 40%", "$1.2M in savings", "reduced processing time by 20 hours").
+2. METRICS: Phrases indicating specific, quantifiable results or achievements. **Crucially, these phrases MUST contain explicit numerical values (e.g., 10, 42, 1.5M) or percentages (e.g., 25%, 10-15%)**. Include the complete phrase associated with the number/percentage (e.g., "saved $50k annually", "achieved 95% accuracy", "reduced latency by 30ms", "managed a team of 15").
+
+**DO NOT include:**
+- General statements of improvement without numbers (e.g., "improved efficiency", "streamlined processes").
+- Qualitative achievements (e.g., "received positive feedback").
+- Ranges without specific start/end numbers unless clearly quantifiable (e.g., prefer "increased sales by 10-15%" over "increased sales significantly").
 
 Analyze the following resume bullet points and return ONLY a JSON object with two arrays:
 {{
