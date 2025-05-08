@@ -94,7 +94,7 @@ def _generate_header_section(personal_info: Optional[Dict[str, Any]]) -> Optiona
     lines = []
     if name:
         lines.append(r"\begin{center}")
-        lines.append(f"    \\textbf{{\\Huge \\scshape {name}}} \\\\ \\vspace{{1pt}}")
+        lines.append(f"    \\textbf{{\\LARGE \\scshape {name}}} \\\\ \\vspace{{2pt}}")
     
     contact_parts = []
     if phone:
@@ -133,6 +133,7 @@ def _generate_header_section(personal_info: Optional[Dict[str, Any]]) -> Optiona
     
     if name: # Only add end{center} if we started it
         lines.append(r"\end{center}")
+        lines.append(r"\vspace{-10pt}") # Add negative space to bring sections closer
         lines.append("") # Add a newline for spacing
 
     return "\n".join(lines) if lines else None
@@ -336,7 +337,8 @@ def _generate_skills_section(skills_dict: Optional[Dict[str, Any]]) -> Optional[
     if not category_lines_content and not soft_skills_content_str: return None
 
     lines = [r"\section{Technical Skills}"]
-    lines.append(r" \begin{itemize}[leftmargin=0.15in, label={}]")
+    lines.append(r"\vspace{2pt}")  # Add space after section heading
+    lines.append(r" \begin{itemize}[leftmargin=0.15in, label={}, itemsep=1pt, parsep=0pt, topsep=0pt]")
     lines.append(r"    \small{\item{")
     if category_lines_content:
         lines.append(" \\\\ ".join(category_lines_content))
@@ -548,30 +550,23 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
         r"\fancyfoot{}",
         r"\renewcommand{\headrulewidth}{0pt}",
         r"\renewcommand{\footrulewidth}{0pt}",
+        r"\addtolength{\oddsidemargin}{-0.6in}",
+        r"\addtolength{\evensidemargin}{-0.6in}",
+        r"\addtolength{\textwidth}{1.2in}",
+        r"\addtolength{\topmargin}{-0.7in}",
     ]
 
-    # Static margin adjustments that were previously part of the large preamble string
-    preamble_parts.extend([
-        r"\addtolength{\oddsidemargin}{-0.5in}", # Reverted
-        r"\addtolength{\evensidemargin}{-0.5in}", # Reverted
-        r"\addtolength{\textwidth}{1in}", # Reverted
-        r"\addtolength{\topmargin}{-.5in}", # Reverted
-        # r"% User settings for margins/height", # Removed user comment
-        # r"\addtolength{{\oddsidemargin}}{{-0.6in}}", # Removed user setting
-        # r"\addtolength{{\evensidemargin}}{{-0.6in}}", # Removed user setting
-        # r"\addtolength{{\textwidth}}{{1.2in}}", # Removed user setting
-        # r"\addtolength{{\topmargin}}{{-0.7in}}", # Removed user setting
-    ])
-    
-    # Restore dynamic text height adjustment
+    # Restore dynamic text height adjustment logic
+    text_height_adjustment = "" # Initialize
     if page_height is not None:
-        if page_height > 15.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{5.0in}}"
+        if page_height > 15.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{5.0in}}" # Double backslashes needed in f-string for LaTeX
         elif page_height > 14.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{4.5in}}"
         elif page_height > 13.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{4.0in}}"
         elif page_height > 12.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{3.0in}}"
         elif page_height > 11.0: text_height_adjustment = f"\\addtolength{{\\textheight}}{{2.0in}}"
-        else: text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}"
+        else: text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}" # Default adjustment for heights <= 11
     else: 
+        # Fallback if page_height is somehow None even during generation (shouldn't happen with auto-size)
         text_height_adjustment = f"\\addtolength{{\\textheight}}{{1.0in}}"
     preamble_parts.append(text_height_adjustment)
 
@@ -581,39 +576,43 @@ def generate_latex_content(data: Dict[str, Any], page_height: Optional[float] = 
         r"\raggedbottom",
         r"\raggedright",
         r"\setlength{\tabcolsep}{0in}",
-        # Using the multi-line representation for titleformat for clarity, though 
-        # the single line with \n should also work in Python source.
-        # This matches the older structure more closely.
         r"\titleformat{\section}{",
-        r"  \vspace{-4pt}\scshape\raggedright\large",
-        r"}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]",
+        r"  \scshape\raggedright\large",
+        r"}{}{0em}{}[\color{black}\titlerule]",
+        r"\titlespacing{\section}{0pt}{5pt}{2pt}",
         r"\pdfgentounicode=1",
         r"\newcommand{\resumeItem}[1]{\item{#1}}",
-        r"\newcommand{\resumeSubheading}[4]{\item\begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}\textbf{#1} & #2 \\ \textit{#3} & \textit{#4} \\ \end{tabular*}}",
+        r"\newcommand{\resumeSubheading}[4]{",
+        r"  \item",
+        r"    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}",
+        r"      \textbf{#1} & #2 \\",
+        r"      \textit{#3} & \textit{#4} \\",
+        r"    \end{tabular*}",
+        r"}",
         r"\newcommand{\resumeSubSubheading}[2]{",
         r"    \item",
         r"    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}",
-        r"      \textit{\small#1} & \textit{\small #2} \\",
-        r"    \end{tabular*}\vspace{-7pt}",
+        r"      \textit{#1} & \textit{#2} \\",
+        r"    \end{tabular*}",
         r"}",
         r"\newcommand{\resumeProjectHeading}[2]{",
         r"    \item",
         r"    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}",
-        r"      \small#1 & #2 \\",
-        r"    \end{tabular*}\vspace{-7pt}",
+        r"      #1 & #2 \\",
+        r"    \end{tabular*}",
         r"}",
         r"\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}",
         r"\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}",
         r"\newcommand{\resumeSubheadingSingleLine}[2]{",
-        r"  \vspace{-2pt}\item",
+        r"  \item",
         r"    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}",
         r"      \textbf{#1} & #2 \\",
-        r"    \end{tabular*}\vspace{-7pt}",
+        r"    \end{tabular*}",
         r"}",
-        r"\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}",
-        r"\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}", 
-        r"\newcommand{\resumeItemListStart}{\begin{itemize}\sloppy}", # Restored \sloppy
-        r"\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}"
+        r"\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}, itemsep=1pt, parsep=0pt, topsep=0pt]}",
+        r"\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}",
+        r"\newcommand{\resumeItemListStart}{\begin{itemize}[itemsep=1pt, parsep=0pt, topsep=0pt]\sloppy}",
+        r"\newcommand{\resumeItemListEnd}{\end{itemize}}"
     ])
 
     preamble = "\n".join(preamble_parts) # This line correctly joins all parts
